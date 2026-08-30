@@ -6,7 +6,7 @@ import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CaseRecord, RiskLevel, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
+import type { CaseRecord, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
 
 function requiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -36,6 +36,10 @@ function parseJsonObject(value: string) {
 
 function idempotencyKeyFor(caseId: string, workflowTemplateId: string) {
   return `case:${caseId}:workflow:${workflowTemplateId}`;
+}
+
+function shouldMockFail(payload: Record<string, unknown>) {
+  return payload.force_failure === true;
 }
 
 export async function createCaseAction(formData: FormData) {
@@ -1071,4 +1075,163 @@ export async function createWorkflowRunAction(formData: FormData) {
   revalidatePath(`/cases/${visibleCase.id}`);
   revalidatePath("/audit");
   redirect(`/cases/${visibleCase.id}`);
+}
+
+export async function executeWorkflowRunAction(formData: FormData) {
+  const runId = requiredString(formData, "workflow_run_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect("/cases?error=workflow_run_forbidden");
+  }
+
+  const { data: run, error: runError } = await supabase.from("workflow_runs").select("*").eq("id", runId).maybeSingle<WorkflowRunRecord>();
+
+  if (runError || !run || !["pending", "queued", "retrying"].includes(run.status)) {
+    console.error("Workflow run is not executable", runError);
+    redirect(run?.case_id ? `/cases/${run.case_id}?error=workflow_execute_failed` : "/cases?error=workflow_execute_failed");
+  }
+
+  const admin = createAdminClient();
+  const startedAt = Date.now();
+  const { data: attempts } = await admin
+    .from("execution_attempts")
+    .select("attempt_number")
+    .eq("workflow_run_id", run.id)
+    .order("attempt_number", { ascending: false })
+    .limit(1)
+    .returns<Array<{ attempt_number: number }>>();
+  const attemptNumber = attempts?.[0]?.attempt_number ?? 1;
+
+  await admin.from("workflow_runs").update({ status: "running", started_at: new Date().toISOString() }).eq("id", run.id).eq("workspace_id", profile.workspace_id);
+  await admin
+    .from("execution_attempts")
+    .update({ status: "running" })
+    .eq("workflow_run_id", run.id)
+    .eq("attempt_number", attemptNumber)
+    .eq("workspace_id", profile.workspace_id);
+
+  const failed = shouldMockFail(run.payload);
+  const latencyMs = Date.now() - startedAt;
+  const completedAt = new Date().toISOString();
+  const responseBody = failed
+    ? { ok: false, message: "Mock connector rejected the payload." }
+    : { ok: true, message: "Mock connector accepted the governed workflow payload." };
+
+  await admin
+    .from("execution_attempts")
+    .update({
+      status: failed ? "failed" : "succeeded",
+      response_status: failed ? 422 : 200,
+      response_body: responseBody,
+      error_message: failed ? "Mock connector rejected the payload." : null,
+      latency_ms: latencyMs
+    })
+    .eq("workflow_run_id", run.id)
+    .eq("attempt_number", attemptNumber)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin
+    .from("workflow_runs")
+    .update({
+      status: failed ? "failed" : "succeeded",
+      completed_at: completedAt,
+      failure_reason: failed ? "Mock connector rejected the payload." : null
+    })
+    .eq("id", run.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin
+    .from("cases")
+    .update({ status: failed ? "failed" : "completed" })
+    .eq("id", run.case_id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "connector",
+    case_id: run.case_id,
+    workflow_run_id: run.id,
+    event_type: failed ? "WORKFLOW_RUN_FAILED" : "WORKFLOW_RUN_SUCCEEDED",
+    event_summary: failed ? "Mock backend connector failed the workflow run." : "Mock backend connector completed the workflow run.",
+    metadata: {
+      attempt_number: attemptNumber,
+      latency_ms: latencyMs,
+      response_status: failed ? 422 : 200,
+      response_body: responseBody
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${run.case_id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${run.case_id}`);
+}
+
+export async function retryWorkflowRunAction(formData: FormData) {
+  const runId = requiredString(formData, "workflow_run_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect("/cases?error=workflow_run_forbidden");
+  }
+
+  const { data: run, error: runError } = await supabase.from("workflow_runs").select("*").eq("id", runId).maybeSingle<WorkflowRunRecord>();
+
+  if (runError || !run || run.status !== "failed" || run.retry_count >= run.max_retries) {
+    console.error("Workflow run is not retryable", runError);
+    redirect(run?.case_id ? `/cases/${run.case_id}?error=workflow_retry_failed` : "/cases?error=workflow_retry_failed");
+  }
+
+  const admin = createAdminClient();
+  const nextAttemptNumber = run.retry_count + 2;
+  const nextRetryCount = run.retry_count + 1;
+
+  await admin
+    .from("workflow_runs")
+    .update({
+      status: "retrying",
+      retry_count: nextRetryCount,
+      failure_reason: null
+    })
+    .eq("id", run.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin.from("execution_attempts").insert({
+    workflow_run_id: run.id,
+    workspace_id: profile.workspace_id,
+    attempt_number: nextAttemptNumber,
+    status: "pending",
+    request_payload: run.payload
+  });
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "system",
+    case_id: run.case_id,
+    workflow_run_id: run.id,
+    event_type: "WORKFLOW_RUN_RETRY_QUEUED",
+    event_summary: `Workflow run retry queued as attempt ${nextAttemptNumber}.`,
+    metadata: {
+      attempt_number: nextAttemptNumber,
+      retry_count: nextRetryCount,
+      max_retries: run.max_retries
+    }
+  });
+
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${run.case_id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${run.case_id}`);
 }

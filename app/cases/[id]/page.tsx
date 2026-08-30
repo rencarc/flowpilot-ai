@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, reviewCaseAction } from "@/app/actions";
+import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, executeWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, retryWorkflowRunAction, reviewCaseAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
@@ -140,6 +140,8 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {error === "workflow_run_forbidden" ? <p className="auth-message error">Workflow runs are restricted to reviewer/admin roles.</p> : null}
         {error === "workflow_run_not_ready" ? <p className="auth-message error">Case must be approved and matched to an approved workflow before a run can be queued.</p> : null}
         {error === "workflow_run_failed" ? <p className="auth-message error">Workflow run could not be queued.</p> : null}
+        {error === "workflow_execute_failed" ? <p className="auth-message error">Workflow run could not be executed.</p> : null}
+        {error === "workflow_retry_failed" ? <p className="auth-message error">Workflow run could not be retried.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -293,6 +295,21 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                         <Kv label="Idempotency key" value={run.idempotency_key} />
                         <Kv label="Retry" value={`${run.retry_count} / ${run.max_retries}`} />
                         <Kv label="Created" value={formatDateTime(run.created_at)} />
+                        <Kv label="Failure reason" value={run.failure_reason ?? "None"} />
+                      </div>
+                      <div className="split-actions review-actions">
+                        {["pending", "queued", "retrying"].includes(run.status) ? (
+                          <form action={executeWorkflowRunAction}>
+                            <input type="hidden" name="workflow_run_id" value={run.id} />
+                            <button className="primary-btn" type="submit">Execute mock run</button>
+                          </form>
+                        ) : null}
+                        {run.status === "failed" && run.retry_count < run.max_retries ? (
+                          <form action={retryWorkflowRunAction}>
+                            <input type="hidden" name="workflow_run_id" value={run.id} />
+                            <button className="secondary-btn" type="submit">Retry run</button>
+                          </form>
+                        ) : null}
                       </div>
                       <h3>Payload preview</h3>
                       <pre className="payload">{JSON.stringify(run.payload, null, 2)}</pre>
@@ -304,7 +321,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                             <div>
                               <div className="audit-meta"><code>ATTEMPT_{attempt.attempt_number}</code><span>{formatDateTime(attempt.created_at)}</span></div>
                               <strong>{formatLooseStatus(attempt.status)}</strong>
-                              <span>{attempt.error_message ?? "Pending backend connector execution."}</span>
+                              <span>{attempt.error_message ?? (attempt.response_status ? `Response ${attempt.response_status}` : "Pending backend connector execution.")}</span>
                             </div>
                           </div>
                         ))}
