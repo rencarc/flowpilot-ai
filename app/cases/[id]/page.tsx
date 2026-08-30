@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyzeCaseAction, checkPolicyEvidenceAction } from "@/app/actions";
+import { analyzeCaseAction, checkPolicyEvidenceAction, reviewCaseAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
@@ -71,6 +71,9 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         />
         {error === "analysis_forbidden" ? <p className="auth-message error">AI analysis is restricted to reviewer/admin roles.</p> : null}
         {error === "policy_check_failed" ? <p className="auth-message error">Policy evidence check failed. Review the policy source and Supabase logs.</p> : null}
+        {error === "review_forbidden" ? <p className="auth-message error">Review decisions are restricted to reviewer/admin roles.</p> : null}
+        {error === "review_failed" ? <p className="auth-message error">Review decision could not be saved. Check Supabase logs and try again.</p> : null}
+        {error === "invalid_review_decision" ? <p className="auth-message error">Invalid review decision.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -118,6 +121,24 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
             <Panel title="Handoff control" tag={<Tag tone={persistedCase.human_review_required ? "review" : "approved"}>{persistedCase.human_review_required ? "Review required" : "No review required"}</Tag>}>
               <h3>Current status</h3>
               <p className="muted">{formatCaseStatus(persistedCase.status)}</p>
+              <h3>Review decision</h3>
+              <div className="review-actions split-actions">
+                <form action={reviewCaseAction}>
+                  <input type="hidden" name="case_id" value={persistedCase.id} />
+                  <input type="hidden" name="decision" value="approve" />
+                  <button className="primary-btn" type="submit">Approve</button>
+                </form>
+                <form action={reviewCaseAction}>
+                  <input type="hidden" name="case_id" value={persistedCase.id} />
+                  <input type="hidden" name="decision" value="request_info" />
+                  <button className="secondary-btn" type="submit">Request info</button>
+                </form>
+                <form action={reviewCaseAction}>
+                  <input type="hidden" name="case_id" value={persistedCase.id} />
+                  <input type="hidden" name="decision" value="reject" />
+                  <button className="danger-btn" type="submit">Reject</button>
+                </form>
+              </div>
               <h3>AI output</h3>
               <pre className="payload">{JSON.stringify(persistedCase.ai_output ?? { status: "pending_step_5" }, null, 2)}</pre>
               <h3>Audit trail</h3>

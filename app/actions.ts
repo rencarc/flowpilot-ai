@@ -267,6 +267,114 @@ export async function checkPolicyEvidenceAction(formData: FormData) {
   redirect(`/cases/${visibleCase.id}`);
 }
 
+export async function reviewCaseAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const decision = requiredString(formData, "decision");
+  const note = requiredString(formData, "note");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect(`/cases/${caseId}?error=review_forbidden`);
+  }
+
+  const { data: visibleCase, error: readError } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("id", caseId)
+    .maybeSingle<CaseRecord>();
+
+  if (readError || !visibleCase) {
+    console.error("Unauthorized or missing case for review", readError);
+    redirect("/review?error=case_not_visible");
+  }
+
+  const reviewConfig = {
+    approve: {
+      status: "approved" as const,
+      humanReviewRequired: false,
+      eventType: "CASE_APPROVED",
+      eventSummary: "Reviewer approved the case for controlled workflow handoff."
+    },
+    request_info: {
+      status: "needs_info" as const,
+      humanReviewRequired: true,
+      eventType: "CHANGES_REQUESTED",
+      eventSummary: "Reviewer requested more information before handoff."
+    },
+    reject: {
+      status: "rejected" as const,
+      humanReviewRequired: false,
+      eventType: "CASE_REJECTED",
+      eventSummary: "Reviewer rejected the case."
+    }
+  }[decision];
+
+  if (!reviewConfig) {
+    redirect(`/cases/${visibleCase.id}?error=invalid_review_decision`);
+  }
+
+  const admin = createAdminClient();
+  const existingOutput = visibleCase.ai_output ?? {};
+  const reviewHistory = Array.isArray(existingOutput.review_history) ? existingOutput.review_history : [];
+  const aiOutput = {
+    ...existingOutput,
+    review_decision: decision,
+    review_note: note || null,
+    reviewed_by: user.id,
+    reviewed_at: new Date().toISOString(),
+    review_history: [
+      ...reviewHistory,
+      {
+        decision,
+        note: note || null,
+        reviewer_id: user.id,
+        reviewed_at: new Date().toISOString()
+      }
+    ]
+  };
+
+  const { error: updateError } = await admin
+    .from("cases")
+    .update({
+      status: reviewConfig.status,
+      human_review_required: reviewConfig.humanReviewRequired,
+      ai_output: aiOutput
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to update review decision", updateError);
+    redirect(`/cases/${visibleCase.id}?error=review_failed`);
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: visibleCase.id,
+    event_type: reviewConfig.eventType,
+    event_summary: reviewConfig.eventSummary,
+    metadata: {
+      decision,
+      note: note || null,
+      previous_status: visibleCase.status,
+      next_status: reviewConfig.status
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath("/review");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${visibleCase.id}`);
+}
+
 export async function createPolicyAction(formData: FormData) {
   const { supabase, user, profile } = await getCurrentUserContext();
 

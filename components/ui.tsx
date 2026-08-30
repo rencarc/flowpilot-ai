@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { reviewCaseAction } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import { actions, auditEvents, cases, getTemplate } from "@/lib/mock-data";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -158,16 +159,31 @@ export function ReviewCaseList({ items }: { items: CaseRecord[] }) {
   return (
     <div className="action-list">
       {items.map((item) => (
-        <Link className="action-row" href={`/cases/${item.id}`} key={item.id}>
+        <article className="action-row" key={item.id}>
           <div>
-            <h3>{item.title}</h3>
+            <h3><Link className="text-link" href={`/cases/${item.id}`}>{item.title}</Link></h3>
             <p>{item.department ?? "No department"} / {item.policy_evidence_status}</p>
           </div>
           <div className="tags">
             <Tag tone={formatRisk(item.risk_level)}>{formatRisk(item.risk_level)}</Tag>
             <Tag tone={formatCaseStatus(item.status)}>{formatCaseStatus(item.status)}</Tag>
+            <form action={reviewCaseAction}>
+              <input type="hidden" name="case_id" value={item.id} />
+              <input type="hidden" name="decision" value="approve" />
+              <button className="small-btn" type="submit">Approve</button>
+            </form>
+            <form action={reviewCaseAction}>
+              <input type="hidden" name="case_id" value={item.id} />
+              <input type="hidden" name="decision" value="request_info" />
+              <button className="small-btn" type="submit">Need info</button>
+            </form>
+            <form action={reviewCaseAction}>
+              <input type="hidden" name="case_id" value={item.id} />
+              <input type="hidden" name="decision" value="reject" />
+              <button className="small-btn danger" type="submit">Reject</button>
+            </form>
           </div>
-        </Link>
+        </article>
       ))}
     </div>
   );
