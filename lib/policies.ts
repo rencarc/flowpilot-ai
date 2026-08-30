@@ -101,9 +101,9 @@ function policySource(policy: PolicyChunkRecord["policies"]) {
 }
 
 export const getVisiblePolicies = cache(async () => {
-  const { supabase, user } = await getCurrentUserContext();
+  const { supabase, user, profile } = await getCurrentUserContext();
 
-  if (!user) {
+  if (!user || !profile || profile.role === "requester") {
     return [];
   }
 
@@ -122,9 +122,9 @@ export const getVisiblePolicies = cache(async () => {
 });
 
 export const getVisiblePolicyChunks = cache(async () => {
-  const { supabase, user } = await getCurrentUserContext();
+  const { supabase, user, profile } = await getCurrentUserContext();
 
-  if (!user) {
+  if (!user || !profile || profile.role === "requester") {
     return [];
   }
 

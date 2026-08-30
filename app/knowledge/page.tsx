@@ -30,13 +30,15 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
   const policies = await getVisiblePolicies();
   const chunks = await getVisiblePolicyChunks();
   const canManagePolicies = profile?.role === "admin";
+  const canReadPolicyLibrary = profile?.role === "reviewer" || profile?.role === "admin";
   const message = errorText(error);
 
   return (
     <AppShell>
       <PageHeader title="Knowledge" subtitle="Workspace policy sources used to ground case risk checks and citations." />
       {message ? <p className="auth-message error">{message}</p> : null}
-      <div className="knowledge-layout">
+      {canReadPolicyLibrary ? (
+        <div className="knowledge-layout">
         <Panel title="Add policy" tag={<Tag tone={canManagePolicies ? "approved" : "review"}>{canManagePolicies ? "Admin" : "Read only"}</Tag>}>
           {canManagePolicies ? (
             <div className="stack">
@@ -84,7 +86,12 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             );
           })}
         </Panel>
-      </div>
+        </div>
+      ) : (
+        <Panel title="Policy citations only" tag={<Tag tone="review">Requester view</Tag>}>
+          <p className="muted">Requesters do not browse the full internal policy library. Relevant policy citations appear on their own case detail pages when a reviewer or admin checks policy evidence.</p>
+        </Panel>
+      )}
       <Panel title="Retrieval status" tag={<Tag tone="pending">Step 6</Tag>}>
         <div className="structure-grid">
           <div className="quote-box"><strong>Current mode</strong><br />Keyword-based retrieval for local development without OpenAI credits.</div>
