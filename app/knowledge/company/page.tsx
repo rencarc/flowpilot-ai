@@ -51,11 +51,11 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
 
   return (
     <AppShell>
-      <PageHeader title="Workspace policies" subtitle="Policies manually added by your workspace admins." action={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
+      <PageHeader title="Workspace policies" subtitle="Company-specific policies added by admins to supplement the baseline governance standards." action={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
       {canReadPolicyLibrary ? (
         <div className="policy-library-layout">
-          <Panel title="Added workspace policies" tag={<Tag tone={companyPolicies.length > 0 ? "approved" : "pending"}>{companyPolicies.length} total</Tag>}>
-            {companyPolicies.length === 0 ? <p className="muted">No workspace policies have been added yet.</p> : null}
+          <Panel title="Company-specific policies" tag={<Tag tone={companyPolicies.length > 0 ? "approved" : "pending"}>{companyPolicies.length} total</Tag>}>
+            {companyPolicies.length === 0 ? <p className="muted">No company-specific workspace policies have been added yet.</p> : null}
             <div className="policy-nav-list">
               {companyPolicies.map((policy) => (
                 <Link className={`policy-nav-item${selectedPolicy?.id === policy.id ? " active" : ""}`} href={`/knowledge/company?policy=${policy.id}`} key={policy.id}>
@@ -98,7 +98,7 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
                 </div>
               </div>
             ) : (
-              <p className="muted">Add a workspace policy from the Knowledge page to see details here.</p>
+              <p className="muted">Add a company-specific workspace policy from the Knowledge page to see details here.</p>
             )}
           </Panel>
         </div>

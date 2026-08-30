@@ -87,10 +87,10 @@ function starterPolicyView(index: number): PolicyView {
 
 function sourceLabel(policy: PolicyView) {
   if (policy.origin === "starter") {
-    return policy.sourceUrl ? "Reference framework" : "Internal template";
+    return policy.sourceUrl ? "Regulatory basis" : "Operating standard";
   }
 
-  return policy.sourceUrl ? "Attached source" : "Manual source";
+  return policy.sourceUrl ? "Workspace source" : "Workspace policy";
 }
 
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ error?: string; policy?: string }> }) {
@@ -108,7 +108,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
 
   return (
     <AppShell>
-      <PageHeader title="Knowledge" subtitle="Policy sources used to ground risk checks, missing information, and case citations." />
+      <PageHeader title="Knowledge" subtitle="Governance standards define the baseline rules. Workspace policies add company-specific evidence for real cases." />
       {message ? <p className="auth-message error">{message}</p> : null}
       {canReadPolicyLibrary ? (
         <>
@@ -116,7 +116,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             <Panel title="Add policy" tag={<Tag tone={canManagePolicies ? "approved" : "review"}>{canManagePolicies ? "Admin" : "Read only"}</Tag>}>
               {canManagePolicies ? (
                 <details className="policy-maintenance" open={policies.length === 0}>
-                  <summary>Add company policy</summary>
+                  <summary>Add workspace policy</summary>
                   <form className="auth-form" action={createPolicyAction}>
                     <label><span>Title</span><input className="input" name="title" defaultValue="Privileged access approval policy" required /></label>
                     <label><span>Description</span><input className="input" name="description" defaultValue="Controls temporary admin access and approval evidence." /></label>
@@ -134,7 +134,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                   </form>
                 </details>
               ) : (
-                <p className="muted">Reviewers can inspect policy content and citations, but only admins can add or update policy sources.</p>
+                <p className="muted">Reviewers can inspect standards, workspace policies, and citations, but only admins can add or update workspace policies.</p>
               )}
             </Panel>
             <Panel
@@ -153,12 +153,12 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                   <small>{latestPolicy.createdAt ? formatDateTime(latestPolicy.createdAt) : "Recently added"} / {latestPolicy.chunks.length} chunks</small>
                 </Link>
               ) : (
-                <p className="muted">No workspace policy has been added yet. The eight starter policies below are readable templates only.</p>
+                <p className="muted">No workspace policy has been added yet. The standards below still provide the baseline governance framework.</p>
               )}
             </Panel>
           </div>
           <div className="policy-library-layout">
-            <Panel title="Starter policies" tag={<Tag tone="pending">{starterViews.length} templates</Tag>}>
+            <Panel title="Governance standards" tag={<Tag tone="pending">{starterViews.length} standards</Tag>}>
               <div className="policy-nav-list">
                 {starterViews.map((policy) => (
                   <Link className={`policy-nav-item${selectedPolicy.id === policy.id ? " active" : ""}`} href={`/knowledge?policy=${policy.id}`} key={policy.id}>
@@ -169,7 +169,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                 ))}
               </div>
             </Panel>
-            <Panel title="Policy detail" tag={<Tag tone="approved">{selectedPolicy.origin === "starter" ? "Template" : "Workspace policy"}</Tag>}>
+            <Panel title="Standard detail" tag={<Tag tone="approved">{selectedPolicy.origin === "starter" ? "Governance standard" : "Workspace policy"}</Tag>}>
               <div className="policy-detail">
                 <div className="policy-detail-head">
                   <div>
