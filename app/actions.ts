@@ -13,6 +13,27 @@ function requiredString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function parseListInput(value: string) {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseJsonObject(value: string) {
+  if (!value) {
+    return {};
+  }
+
+  const parsed = JSON.parse(value);
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Expected a JSON object");
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
 export async function createCaseAction(formData: FormData) {
   const { supabase, user, profile } = await getCurrentUserContext();
 
@@ -533,4 +554,84 @@ export async function createPolicyAction(formData: FormData) {
   revalidatePath("/knowledge");
   revalidatePath("/audit");
   redirect("/knowledge");
+}
+
+export async function createWorkflowTemplateAction(formData: FormData) {
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/workflows?error=workflow_forbidden");
+  }
+
+  const name = requiredString(formData, "name");
+  const description = requiredString(formData, "description");
+  const category = requiredString(formData, "category");
+  const triggerCondition = requiredString(formData, "trigger_condition");
+  const requiredFields = parseListInput(requiredString(formData, "required_fields"));
+  const riskLevel = requiredString(formData, "risk_level") || "medium";
+  const requiresReview = formData.get("requires_review") === "on";
+  const payloadSchemaInput = requiredString(formData, "payload_schema");
+
+  if (!name || !category || !triggerCondition) {
+    redirect("/workflows?error=missing_workflow");
+  }
+
+  if (!["low", "medium", "high"].includes(riskLevel)) {
+    redirect("/workflows?error=invalid_workflow");
+  }
+
+  let payloadSchema: Record<string, unknown>;
+
+  try {
+    payloadSchema = parseJsonObject(payloadSchemaInput);
+  } catch (error) {
+    console.error("Invalid workflow payload schema", error);
+    redirect("/workflows?error=invalid_payload_schema");
+  }
+
+  const { data: workflow, error: workflowError } = await supabase
+    .from("workflow_templates")
+    .insert({
+      workspace_id: profile.workspace_id,
+      name,
+      description: description || null,
+      category,
+      trigger_condition: triggerCondition,
+      required_fields: requiredFields,
+      risk_level: riskLevel,
+      requires_review: requiresReview,
+      payload_schema: payloadSchema,
+      active: true,
+      lifecycle_status: "approved"
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (workflowError || !workflow) {
+    console.error("Failed to create workflow template", workflowError);
+    redirect("/workflows?error=create_workflow_failed");
+  }
+
+  await supabase.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: "WORKFLOW_TEMPLATE_CREATED",
+    event_summary: `Admin created approved workflow template: ${name}.`,
+    metadata: {
+      workflow_template_id: workflow.id,
+      category,
+      risk_level: riskLevel,
+      required_fields: requiredFields,
+      requires_review: requiresReview
+    }
+  });
+
+  revalidatePath("/workflows");
+  revalidatePath("/audit");
+  redirect("/workflows");
 }

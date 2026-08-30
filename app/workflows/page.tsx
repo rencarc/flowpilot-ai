@@ -1,3 +1,4 @@
+import { createWorkflowTemplateAction } from "@/app/actions";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, formatRisk, getCurrentUserContext } from "@/lib/cases";
 import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates } from "@/lib/workflows";
@@ -33,6 +34,30 @@ function RequiredFields({ fields }: { fields: string[] }) {
   }
 
   return <>{fields.map((field) => <Tag key={field}>{field}</Tag>)}</>;
+}
+
+function errorText(error?: string) {
+  if (error === "workflow_forbidden") {
+    return "Only admins can create workflow templates.";
+  }
+
+  if (error === "missing_workflow") {
+    return "Workflow name, category, and trigger condition are required.";
+  }
+
+  if (error === "invalid_workflow") {
+    return "Workflow risk level is invalid.";
+  }
+
+  if (error === "invalid_payload_schema") {
+    return "Payload schema must be a valid JSON object.";
+  }
+
+  if (error === "create_workflow_failed") {
+    return "Could not create the workflow template.";
+  }
+
+  return null;
 }
 
 function WorkflowTemplateCard({ template }: { template: WorkflowTemplateRecord }) {
@@ -81,7 +106,8 @@ function ProposalCard({ proposal }: { proposal: WorkflowTemplateProposalRecord }
   );
 }
 
-export default async function WorkflowsPage() {
+export default async function WorkflowsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const { profile } = await getCurrentUserContext();
   const canReadWorkflows = profile?.role === "reviewer" || profile?.role === "admin";
   const canManageWorkflows = profile?.role === "admin";
@@ -95,8 +121,41 @@ export default async function WorkflowsPage() {
         title="Workflows"
         subtitle="Approved workflow templates and AI proposals. AI can draft, but only admin-approved templates can become executable."
       />
+      {errorText(error) ? <p className="auth-message error">{errorText(error)}</p> : null}
       {canReadWorkflows ? (
         <>
+          {canManageWorkflows ? (
+            <Panel title="Create workflow template" tag={<Tag tone="approved">Admin</Tag>}>
+              <details className="policy-maintenance">
+                <summary>Add approved workflow</summary>
+                <form className="auth-form" action={createWorkflowTemplateAction}>
+                  <label><span>Name</span><input className="input" name="name" defaultValue="Payroll access review" required /></label>
+                  <label><span>Description</span><input className="input" name="description" defaultValue="Routes temporary payroll access requests through policy evidence and human approval." /></label>
+                  <label><span>Category</span><input className="input" name="category" defaultValue="Access management" required /></label>
+                  <label><span>Trigger condition</span><input className="input" name="trigger_condition" defaultValue="Payroll or HR system access request with admin or elevated permissions" required /></label>
+                  <label><span>Required fields</span><textarea className="textarea compact-textarea" name="required_fields" defaultValue={"requester\nmanager approval\ntarget system\nrequested role\naccess duration\nbusiness justification"} /></label>
+                  <label>
+                    <span>Risk level</span>
+                    <select className="input" name="risk_level" defaultValue="high">
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </label>
+                  <label className="check-row"><input name="requires_review" type="checkbox" defaultChecked /> Requires human review before handoff</label>
+                  <label>
+                    <span>Payload schema</span>
+                    <textarea
+                      className="textarea compact-textarea"
+                      name="payload_schema"
+                      defaultValue={JSON.stringify({ requester: "string", target_system: "string", requested_role: "string", access_duration: "string", approval_evidence: "string" }, null, 2)}
+                    />
+                  </label>
+                  <button className="primary-btn full-width" type="submit">Create workflow</button>
+                </form>
+              </details>
+            </Panel>
+          ) : null}
           <div className="metric-strip">
             <div className="metric"><span>Approved workflows</span><strong>{approvedTemplates.length}</strong><small>Executable after review gate</small></div>
             <div className="metric"><span>AI proposals</span><strong>{proposals.length}</strong><small>Draft only until admin conversion</small></div>
