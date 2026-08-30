@@ -110,7 +110,7 @@ export default function ArchitecturePage() {
 
       <Panel title="Interview talk track">
         <div className="talk-track">
-          <p><strong>中文：</strong>这个架构的核心是把 AI 推理和生产执行分开。AI 可以结构化请求、检索政策、判断风险并提出建议，但高风险、信息不完整或缺少政策依据的请求必须进入审核或阻塞状态，只有通过审批的 workflow run 才能由后端 connector 执行。</p>
+          <p><strong>Chinese:</strong> 这个架构的核心是把 AI 推理和生产执行分开。AI 可以结构化请求、检索政策、判断风险并提出建议，但高风险、信息不完整或缺少政策依据的请求必须进入审核或阻塞状态。只有通过审批的 workflow run，才能由后端 connector 执行。</p>
           <p><strong>English:</strong> The key architectural decision is to separate AI reasoning from workflow execution. The AI can structure, classify, retrieve policy evidence, and propose actions, but risky or incomplete requests must pass validation and human review before any backend connector can execute a workflow.</p>
         </div>
       </Panel>
