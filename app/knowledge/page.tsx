@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createPolicyAction } from "@/app/actions";
 import { AppShell, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
-import { starterPolicies } from "@/lib/policy-starter-pack";
+import { governanceStandards } from "@/lib/governance-standards";
 import { getVisiblePolicies, getVisiblePolicyChunks, isWorkspaceAuthoredPolicy, splitPolicyContent, type PolicyChunkRecord, type PolicyRecord } from "@/lib/policies";
 
 type PolicyView =
@@ -14,7 +14,7 @@ type PolicyView =
       sourceUrl: string | null;
       createdAt: string | null;
       chunks: Array<{ id: string; heading: string; content: string }>;
-      origin: "starter" | "workspace";
+      origin: "standard" | "workspace";
     };
 
 function errorText(error?: string) {
@@ -65,20 +65,20 @@ function workspacePolicyView(policy: PolicyRecord, chunks: PolicyChunkRecord[]):
   };
 }
 
-function starterPolicyView(index: number): PolicyView {
-  const policy = starterPolicies[index];
+function governanceStandardView(index: number): PolicyView {
+  const policy = governanceStandards[index];
   const chunks = splitPolicyContent(policy.content);
 
   return {
-    id: `starter:${index}`,
+    id: `standard:${index}`,
     title: policy.title,
     description: policy.description,
     sourceType: policy.sourceUrl.startsWith("internal://") ? "internal_starter" : "regulatory_reference",
     sourceUrl: policy.sourceUrl.startsWith("internal://") ? null : policy.sourceUrl,
     createdAt: null,
-    origin: "starter",
+    origin: "standard",
     chunks: chunks.map((chunk, chunkIndex) => ({
-      id: `starter:${index}:${chunkIndex}`,
+      id: `standard:${index}:${chunkIndex}`,
       heading: headingFromText(chunk, `Section ${chunkIndex + 1}`),
       content: chunk
     }))
@@ -86,7 +86,7 @@ function starterPolicyView(index: number): PolicyView {
 }
 
 function sourceLabel(policy: PolicyView) {
-  if (policy.origin === "starter") {
+  if (policy.origin === "standard") {
     return policy.sourceUrl ? "Regulatory basis" : "Operating standard";
   }
 
@@ -103,8 +103,8 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
   const message = errorText(error);
   const workspacePolicies = policies.filter(isWorkspaceAuthoredPolicy);
   const latestPolicy = workspacePolicies[0] ? workspacePolicyView(workspacePolicies[0], chunks) : null;
-  const starterViews = starterPolicies.map((_, index) => starterPolicyView(index));
-  const selectedPolicy = starterViews.find((policy) => policy.id === selectedId) ?? starterViews[0];
+  const standardViews = governanceStandards.map((_, index) => governanceStandardView(index));
+  const selectedPolicy = standardViews.find((policy) => policy.id === selectedId) ?? standardViews[0];
 
   return (
     <AppShell>
@@ -158,9 +158,9 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             </Panel>
           </div>
           <div className="policy-library-layout">
-            <Panel title="Governance standards" tag={<Tag tone="pending">{starterViews.length} standards</Tag>}>
+            <Panel title="Governance standards" tag={<Tag tone="pending">{standardViews.length} standards</Tag>}>
               <div className="policy-nav-list">
-                {starterViews.map((policy) => (
+                {standardViews.map((policy) => (
                   <Link className={`policy-nav-item${selectedPolicy.id === policy.id ? " active" : ""}`} href={`/knowledge?policy=${policy.id}`} key={policy.id}>
                     <strong>{policy.title}</strong>
                     <span>{policy.description}</span>
@@ -169,7 +169,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                 ))}
               </div>
             </Panel>
-            <Panel title="Standard detail" tag={<Tag tone="approved">{selectedPolicy.origin === "starter" ? "Governance standard" : "Workspace policy"}</Tag>}>
+            <Panel title="Standard detail" tag={<Tag tone="approved">{selectedPolicy.origin === "standard" ? "Governance standard" : "Workspace policy"}</Tag>}>
               <div className="policy-detail">
                 <div className="policy-detail-head">
                   <div>

@@ -1,11 +1,11 @@
-export interface StarterPolicy {
+export interface GovernanceStandard {
   title: string;
   description: string;
   sourceUrl: string;
   content: string;
 }
 
-export const starterPolicies: StarterPolicy[] = [
+export const governanceStandards: GovernanceStandard[] = [
   {
     title: "EU AI Act Compliance Policy",
     description: "Internal operating policy based on EU AI Act risk management, transparency, human oversight, and logging themes.",

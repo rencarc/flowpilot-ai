@@ -38,6 +38,10 @@ function policyCitationsFrom(output: Record<string, unknown> | null) {
   return citations.filter((citation): citation is Record<string, unknown> => citation !== null && typeof citation === "object");
 }
 
+function citationKindLabel(citation: Record<string, unknown>) {
+  return citation.source_kind === "governance_standard" ? "Governance standard" : "Workspace policy";
+}
+
 export default async function CaseDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const { error } = await searchParams;
@@ -95,6 +99,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                     <div>
                       <h3>{String(citation.policy_title ?? "Policy citation")}</h3>
                       <p>{String(citation.excerpt ?? "")}</p>
+                      <p><strong>Evidence type:</strong> {citationKindLabel(citation)}</p>
                       {typeof citation.source_url === "string" && citation.source_url ? <p><strong>Source:</strong> {citation.source_url}</p> : null}
                     </div>
                     <div className="tags"><Tag tone="approved">score {String(citation.score ?? 0)}</Tag></div>
