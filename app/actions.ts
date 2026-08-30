@@ -375,6 +375,89 @@ export async function reviewCaseAction(formData: FormData) {
   redirect(`/cases/${visibleCase.id}`);
 }
 
+export async function provideCaseInfoAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const update = requiredString(formData, "update");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!update) {
+    redirect(`/cases/${caseId}?error=missing_update`);
+  }
+
+  const { data: visibleCase, error: readError } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("id", caseId)
+    .maybeSingle<CaseRecord>();
+
+  if (readError || !visibleCase) {
+    console.error("Unauthorized or missing case for requester update", readError);
+    redirect("/cases?error=case_not_visible");
+  }
+
+  if (visibleCase.created_by !== user.id) {
+    redirect(`/cases/${visibleCase.id}?error=update_forbidden`);
+  }
+
+  const admin = createAdminClient();
+  const existingOutput = visibleCase.ai_output ?? {};
+  const requesterUpdates = Array.isArray(existingOutput.requester_updates) ? existingOutput.requester_updates : [];
+  const submittedAt = new Date().toISOString();
+  const aiOutput = {
+    ...existingOutput,
+    requester_updates: [
+      ...requesterUpdates,
+      {
+        update,
+        submitted_by: user.id,
+        submitted_at: submittedAt
+      }
+    ],
+    latest_requester_update: update,
+    latest_requester_update_at: submittedAt
+  };
+
+  const { error: updateError } = await admin
+    .from("cases")
+    .update({
+      status: "in_review",
+      human_review_required: true,
+      ai_output: aiOutput
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to save requester update", updateError);
+    redirect(`/cases/${visibleCase.id}?error=update_failed`);
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: visibleCase.id,
+    event_type: "REQUESTER_INFO_PROVIDED",
+    event_summary: "Requester provided additional information for review.",
+    metadata: {
+      previous_status: visibleCase.status,
+      next_status: "in_review",
+      update
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath("/review");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${visibleCase.id}`);
+}
+
 export async function createPolicyAction(formData: FormData) {
   const { supabase, user, profile } = await getCurrentUserContext();
 

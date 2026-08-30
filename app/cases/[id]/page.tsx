@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyzeCaseAction, checkPolicyEvidenceAction, reviewCaseAction } from "@/app/actions";
+import { analyzeCaseAction, checkPolicyEvidenceAction, provideCaseInfoAction, reviewCaseAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
@@ -61,6 +61,22 @@ function latestReviewNote(output: Record<string, unknown> | null) {
   };
 }
 
+function latestRequesterUpdate(output: Record<string, unknown> | null) {
+  const updates = output?.requester_updates;
+
+  if (!Array.isArray(updates)) {
+    return null;
+  }
+
+  const latest = updates.filter((item): item is Record<string, unknown> => item !== null && typeof item === "object").at(-1);
+
+  if (!latest) {
+    return null;
+  }
+
+  return typeof latest.update === "string" && latest.update ? latest.update : null;
+}
+
 export default async function CaseDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const { error } = await searchParams;
@@ -68,8 +84,10 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const auditLogs = persistedCase ? await getAuditLogsForCase(persistedCase.id) : [];
   const { profile } = await getCurrentUserContext();
   const canAnalyze = profile?.role === "reviewer" || profile?.role === "admin";
+  const canProvideInfo = profile?.user_id === persistedCase?.created_by && persistedCase?.status === "needs_info";
   const policyCitations = persistedCase ? policyCitationsFrom(persistedCase.ai_output) : [];
   const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
+  const requesterUpdate = persistedCase ? latestRequesterUpdate(persistedCase.ai_output) : null;
 
   if (persistedCase) {
     return (
@@ -94,6 +112,9 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {error === "review_forbidden" ? <p className="auth-message error">Review decisions are restricted to reviewer/admin roles.</p> : null}
         {error === "review_failed" ? <p className="auth-message error">Review decision could not be saved. Check Supabase logs and try again.</p> : null}
         {error === "invalid_review_decision" ? <p className="auth-message error">Invalid review decision.</p> : null}
+        {error === "missing_update" ? <p className="auth-message error">Please add the requested information before submitting.</p> : null}
+        {error === "update_forbidden" ? <p className="auth-message error">Only the original requester can add information to this case.</p> : null}
+        {error === "update_failed" ? <p className="auth-message error">Additional information could not be saved. Check Supabase logs and try again.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -145,6 +166,14 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                 </div>
               </>
             ) : null}
+            {requesterUpdate ? (
+              <>
+                <h3>Latest requester update</h3>
+                <div className="quote-box">
+                  <p>{requesterUpdate}</p>
+                </div>
+              </>
+            ) : null}
           </Panel>
           {canAnalyze ? (
             <Panel title="Handoff control" tag={<Tag tone={persistedCase.human_review_required ? "review" : "approved"}>{persistedCase.human_review_required ? "Review required" : "No review required"}</Tag>}>
@@ -189,6 +218,16 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                     <strong>{reviewNote.decision.replace("_", " ")}</strong>
                     <p>{reviewNote.note ?? "No note was provided."}</p>
                   </div>
+                </>
+              ) : null}
+              {canProvideInfo ? (
+                <>
+                  <h3>Provide requested information</h3>
+                  <form className="auth-form" action={provideCaseInfoAction}>
+                    <input type="hidden" name="case_id" value={persistedCase.id} />
+                    <textarea className="textarea compact-textarea" name="update" placeholder="Add the missing information requested by the reviewer." required />
+                    <button className="primary-btn full-width" type="submit">Submit update</button>
+                  </form>
                 </>
               ) : null}
               <h3>Visible timeline</h3>

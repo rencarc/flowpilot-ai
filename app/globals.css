@@ -66,6 +66,7 @@ h1, h2, h3, p { margin-top: 0; }
 .input, .textarea { width: 100%; border: 1px solid var(--line-strong); background: #fffefa; color: var(--text); border-radius: 8px; padding: 10px 12px; outline: none; }
 .search { max-width: 390px; margin-left: auto; }
 .textarea { min-height: 230px; resize: vertical; line-height: 1.55; }
+.compact-textarea { min-height: 120px; }
 .user-chip { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
 .avatar { width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; background: #e2edd7; color: var(--brand); font-weight: 800; }
 .content { padding: 22px; }
