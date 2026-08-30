@@ -3,7 +3,7 @@ import { createPolicyAction } from "@/app/actions";
 import { AppShell, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
 import { starterPolicies } from "@/lib/policy-starter-pack";
-import { getVisiblePolicies, getVisiblePolicyChunks, splitPolicyContent, type PolicyChunkRecord, type PolicyRecord } from "@/lib/policies";
+import { getVisiblePolicies, getVisiblePolicyChunks, isWorkspaceAuthoredPolicy, splitPolicyContent, type PolicyChunkRecord, type PolicyRecord } from "@/lib/policies";
 
 type PolicyView =
   | {
@@ -101,7 +101,8 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
   const canManagePolicies = profile?.role === "admin";
   const canReadPolicyLibrary = profile?.role === "reviewer" || profile?.role === "admin";
   const message = errorText(error);
-  const latestPolicy = policies[0] ? workspacePolicyView(policies[0], chunks) : null;
+  const workspacePolicies = policies.filter(isWorkspaceAuthoredPolicy);
+  const latestPolicy = workspacePolicies[0] ? workspacePolicyView(workspacePolicies[0], chunks) : null;
   const starterViews = starterPolicies.map((_, index) => starterPolicyView(index));
   const selectedPolicy = starterViews.find((policy) => policy.id === selectedId) ?? starterViews[0];
 
@@ -137,10 +138,10 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
               )}
             </Panel>
             <Panel
-              title="Latest policy"
+              title="Latest workspace policy"
               tag={
                 <div className="split-actions">
-                  {policies.length > 0 ? <Link className="small-btn" href="/knowledge/company">View all</Link> : null}
+                  {workspacePolicies.length > 0 ? <Link className="small-btn" href="/knowledge/company">View all</Link> : null}
                   <Tag tone={latestPolicy ? "approved" : "pending"}>{latestPolicy ? "Workspace" : "None yet"}</Tag>
                 </div>
               }
@@ -152,7 +153,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                   <small>{latestPolicy.createdAt ? formatDateTime(latestPolicy.createdAt) : "Recently added"} / {latestPolicy.chunks.length} chunks</small>
                 </Link>
               ) : (
-                <p className="muted">No custom policy has been added yet. The eight starter policies below are available as readable templates.</p>
+                <p className="muted">No workspace policy has been added yet. The eight starter policies below are readable templates only.</p>
               )}
             </Panel>
           </div>

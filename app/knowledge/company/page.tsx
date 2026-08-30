@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AppShell, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
-import { getVisiblePolicies, getVisiblePolicyChunks, type PolicyChunkRecord, type PolicyRecord } from "@/lib/policies";
+import { getVisiblePolicies, getVisiblePolicyChunks, isWorkspaceAuthoredPolicy, type PolicyChunkRecord, type PolicyRecord } from "@/lib/policies";
 
 type CompanyPolicyView = {
   id: string;
@@ -44,18 +44,18 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
   const { policy: selectedId } = await searchParams;
   const { profile } = await getCurrentUserContext();
   const canReadPolicyLibrary = profile?.role === "reviewer" || profile?.role === "admin";
-  const policies = canReadPolicyLibrary ? await getVisiblePolicies() : [];
+  const policies = canReadPolicyLibrary ? (await getVisiblePolicies()).filter(isWorkspaceAuthoredPolicy) : [];
   const chunks = canReadPolicyLibrary ? await getVisiblePolicyChunks() : [];
   const companyPolicies = policies.map((policy) => companyPolicyView(policy, chunks));
   const selectedPolicy = companyPolicies.find((policy) => policy.id === selectedId) ?? companyPolicies[0];
 
   return (
     <AppShell>
-      <PageHeader title="Company policies" subtitle="Policies added by your workspace admins." action={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
+      <PageHeader title="Workspace policies" subtitle="Policies manually added by your workspace admins." action={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
       {canReadPolicyLibrary ? (
         <div className="policy-library-layout">
-          <Panel title="Added policies" tag={<Tag tone={companyPolicies.length > 0 ? "approved" : "pending"}>{companyPolicies.length} total</Tag>}>
-            {companyPolicies.length === 0 ? <p className="muted">No company policies have been added yet.</p> : null}
+          <Panel title="Added workspace policies" tag={<Tag tone={companyPolicies.length > 0 ? "approved" : "pending"}>{companyPolicies.length} total</Tag>}>
+            {companyPolicies.length === 0 ? <p className="muted">No workspace policies have been added yet.</p> : null}
             <div className="policy-nav-list">
               {companyPolicies.map((policy) => (
                 <Link className={`policy-nav-item${selectedPolicy?.id === policy.id ? " active" : ""}`} href={`/knowledge/company?policy=${policy.id}`} key={policy.id}>
@@ -66,7 +66,7 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
               ))}
             </div>
           </Panel>
-          <Panel title="Policy detail" tag={<Tag tone={selectedPolicy ? "approved" : "review"}>{selectedPolicy ? "Company policy" : "No policy"}</Tag>}>
+          <Panel title="Policy detail" tag={<Tag tone={selectedPolicy ? "approved" : "review"}>{selectedPolicy ? "Workspace policy" : "No policy"}</Tag>}>
             {selectedPolicy ? (
               <div className="policy-detail">
                 <div className="policy-detail-head">
@@ -98,13 +98,13 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
                 </div>
               </div>
             ) : (
-              <p className="muted">Add a company policy from the Knowledge page to see details here.</p>
+              <p className="muted">Add a workspace policy from the Knowledge page to see details here.</p>
             )}
           </Panel>
         </div>
       ) : (
         <Panel title="Policy citations only" tag={<Tag tone="review">Requester view</Tag>}>
-          <p className="muted">Requesters cannot browse the full company policy library. Relevant citations appear on their own case detail pages.</p>
+          <p className="muted">Requesters cannot browse the full workspace policy library. Relevant citations appear on their own case detail pages.</p>
         </Panel>
       )}
     </AppShell>

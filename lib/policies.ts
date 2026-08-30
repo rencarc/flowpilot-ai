@@ -33,6 +33,10 @@ export interface PolicyCitation {
   score: number;
 }
 
+export function isWorkspaceAuthoredPolicy(policy: Pick<PolicyRecord, "source_type">) {
+  return policy.source_type === "manual" || policy.source_type === "url";
+}
+
 const STOP_WORDS = new Set([
   "the",
   "and",
