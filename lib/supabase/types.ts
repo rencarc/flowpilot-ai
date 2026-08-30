@@ -165,3 +165,20 @@ export interface ExecutionAttemptRecord {
   latency_ms: number | null;
   created_at: string;
 }
+
+export interface AiTraceRecord {
+  id: string;
+  workspace_id: string;
+  case_id: string | null;
+  trace_id: string | null;
+  prompt_version: string;
+  model: string;
+  input_hash: string;
+  output_valid: boolean;
+  latency_ms: number | null;
+  token_input: number | null;
+  token_output: number | null;
+  estimated_cost: number | null;
+  error_message: string | null;
+  created_at: string;
+}

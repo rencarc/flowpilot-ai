@@ -198,6 +198,7 @@ export async function analyzeCaseAction(formData: FormData) {
   }
 
   const startedAt = Date.now();
+  const traceId = crypto.randomUUID();
   const admin = createAdminClient();
   const policyCitations = await retrievePolicyCitations(visibleCase);
 
@@ -248,6 +249,7 @@ export async function analyzeCaseAction(formData: FormData) {
           ? `AI classified case as ${analysis.risk_level} risk with ${policyCitations.length} policy citation(s).`
           : "AI analysis completed, but no matching policy evidence was found.",
       metadata: {
+        trace_id: traceId,
         model: "gpt-4.1-mini",
         latency_ms: latencyMs,
         confidence_score: analysis.confidence_score,
@@ -259,6 +261,7 @@ export async function analyzeCaseAction(formData: FormData) {
     await admin.from("ai_traces").insert({
       workspace_id: profile.workspace_id,
       case_id: visibleCase.id,
+      trace_id: traceId,
       prompt_version: "step_5_case_analysis_v1",
       model: "gpt-4.1-mini",
       input_hash: visibleCase.id,
@@ -267,7 +270,20 @@ export async function analyzeCaseAction(formData: FormData) {
     });
   } catch (error) {
     console.error("AI analysis failed", error);
+    const latencyMs = Date.now() - startedAt;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     await admin.from("cases").update({ status: "ai_output_invalid" }).eq("id", visibleCase.id).eq("workspace_id", profile.workspace_id);
+    await admin.from("ai_traces").insert({
+      workspace_id: profile.workspace_id,
+      case_id: visibleCase.id,
+      trace_id: traceId,
+      prompt_version: "step_5_case_analysis_v1",
+      model: "gpt-4.1-mini",
+      input_hash: visibleCase.id,
+      output_valid: false,
+      latency_ms: latencyMs,
+      error_message: errorMessage
+    });
     await admin.from("audit_logs").insert({
       workspace_id: profile.workspace_id,
       actor_id: user.id,
@@ -276,7 +292,9 @@ export async function analyzeCaseAction(formData: FormData) {
       event_type: "AI_OUTPUT_INVALID",
       event_summary: "AI analysis failed or returned invalid structured output.",
       metadata: {
-        error: error instanceof Error ? error.message : "Unknown error"
+        trace_id: traceId,
+        latency_ms: latencyMs,
+        error: errorMessage
       }
     });
   }
