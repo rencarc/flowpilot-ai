@@ -2,6 +2,23 @@ import { cache } from "react";
 import { getCurrentUserContext, getVisibleCases, type AuditLogRecord } from "@/lib/cases";
 import type { AiTraceRecord, CaseRecord } from "@/lib/supabase/types";
 
+export function getLangfuseConfigStatus() {
+  const hasPublicKey = Boolean(process.env.LANGFUSE_PUBLIC_KEY);
+  const hasSecretKey = Boolean(process.env.LANGFUSE_SECRET_KEY);
+  const host = process.env.LANGFUSE_HOST || "https://cloud.langfuse.com";
+  const enabled = hasPublicKey && hasSecretKey;
+
+  return {
+    enabled,
+    host,
+    status: enabled ? "configured" : "not_configured",
+    missing: [
+      hasPublicKey ? null : "LANGFUSE_PUBLIC_KEY",
+      hasSecretKey ? null : "LANGFUSE_SECRET_KEY"
+    ].filter(Boolean) as string[]
+  };
+}
+
 export const getVisibleAiTraces = cache(async (limit = 20) => {
   const { supabase, user, profile } = await getCurrentUserContext();
 

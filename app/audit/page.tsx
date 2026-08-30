@@ -1,6 +1,6 @@
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext, getVisibleAuditLogs } from "@/lib/cases";
-import { getObservabilitySummary, getVisibleAiTraces } from "@/lib/observability";
+import { getLangfuseConfigStatus, getObservabilitySummary, getVisibleAiTraces } from "@/lib/observability";
 
 export default async function AuditPage() {
   const { profile } = await getCurrentUserContext();
@@ -8,6 +8,7 @@ export default async function AuditPage() {
   const summary = await getObservabilitySummary(auditEvents);
   const aiTraces = await getVisibleAiTraces(12);
   const canSeeAiTraces = profile?.role === "admin";
+  const langfuse = getLangfuseConfigStatus();
 
   return (
     <AppShell>
@@ -26,6 +27,14 @@ export default async function AuditPage() {
             <Kv label="Cases with citations" value={`${summary.casesWithCitations} / ${summary.totalCases}`} />
             <Kv label="Review decisions observed" value={summary.reviewEvents} />
             <Kv label="Next eval upgrade" value="Compare pgvector citations after OpenAI credits are available" />
+          </div>
+        </Panel>
+        <Panel title="External tracing" tag={<Tag tone={langfuse.enabled ? "approved" : "pending"}>{langfuse.status}</Tag>}>
+          <div className="kv">
+            <Kv label="Provider" value="Langfuse" />
+            <Kv label="Host" value={langfuse.host} />
+            <Kv label="Mode" value={langfuse.enabled ? "Ready for SDK trace export" : "Local audit only"} />
+            <Kv label="Missing env" value={langfuse.missing.length > 0 ? langfuse.missing.join(", ") : "None"} />
           </div>
         </Panel>
         <Panel title="AI traces" tag={<Tag tone={canSeeAiTraces ? "approved" : "pending"}>{canSeeAiTraces ? `${aiTraces.length} traces` : "Admin only"}</Tag>}>

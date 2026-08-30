@@ -2,6 +2,7 @@ import { createConnectorAction } from "@/app/actions";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
 import { getVisibleConnectors } from "@/lib/execution";
+import { getLangfuseConfigStatus } from "@/lib/observability";
 
 function errorText(error?: string) {
   if (error === "connector_forbidden") {
@@ -40,6 +41,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const { profile } = await getCurrentUserContext();
   const canManageConnectors = profile?.role === "admin";
   const connectors = canManageConnectors ? await getVisibleConnectors() : [];
+  const langfuse = getLangfuseConfigStatus();
 
   return (
     <AppShell>
@@ -64,6 +66,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <Kv label="High risk" value="Always requires review" />
             <Kv label="Missing info" value="Blocks handoff" />
             <Kv label="Approved templates only" value="AI cannot execute unknown workflows" />
+          </div>
+        </Panel>
+        <Panel title="Observability" tag={<Tag tone={langfuse.enabled ? "approved" : "pending"}>{langfuse.status}</Tag>}>
+          <div className="kv">
+            <Kv label="Local traces" value="Stored in Supabase ai_traces and audit_logs" />
+            <Kv label="External provider" value="Langfuse" />
+            <Kv label="Host" value={langfuse.host} />
+            <Kv label="Missing env" value={langfuse.missing.length > 0 ? langfuse.missing.join(", ") : "None"} />
           </div>
         </Panel>
         <Panel title="Connectors" tag={<Tag tone={canManageConnectors ? "approved" : "pending"}>{canManageConnectors ? `${connectors.length} active` : "Admin only"}</Tag>}>
