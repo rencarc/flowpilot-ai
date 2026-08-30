@@ -146,7 +146,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
               }
             >
               {latestPolicy ? (
-                <Link className="policy-nav-item active" href={`/knowledge?policy=${latestPolicy.id}`}>
+                <Link className="policy-nav-item active" href={`/knowledge/company?policy=${latestPolicy.id.replace("workspace:", "")}`}>
                   <strong>{latestPolicy.title}</strong>
                   <span>{latestPolicy.description ?? "No description provided."}</span>
                   <small>{latestPolicy.createdAt ? formatDateTime(latestPolicy.createdAt) : "Recently added"} / {latestPolicy.chunks.length} chunks</small>
