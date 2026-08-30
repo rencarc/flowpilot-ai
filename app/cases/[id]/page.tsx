@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, executeWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, retryWorkflowRunAction, reviewCaseAction } from "@/app/actions";
+import { analyzeCaseAction, cancelWorkflowRunAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, executeWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, retryWorkflowRunAction, reviewCaseAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
@@ -142,6 +142,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {error === "workflow_run_failed" ? <p className="auth-message error">Workflow run could not be queued.</p> : null}
         {error === "workflow_execute_failed" ? <p className="auth-message error">Workflow run could not be executed.</p> : null}
         {error === "workflow_retry_failed" ? <p className="auth-message error">Workflow run could not be retried.</p> : null}
+        {error === "workflow_cancel_failed" ? <p className="auth-message error">Workflow run could not be cancelled.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -308,6 +309,13 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                           <form action={retryWorkflowRunAction}>
                             <input type="hidden" name="workflow_run_id" value={run.id} />
                             <button className="secondary-btn" type="submit">Retry run</button>
+                          </form>
+                        ) : null}
+                        {["pending", "queued", "running", "failed", "retrying"].includes(run.status) ? (
+                          <form className="inline-review-form" action={cancelWorkflowRunAction}>
+                            <input type="hidden" name="workflow_run_id" value={run.id} />
+                            <input className="mini-input" name="reason" placeholder="Cancel reason" />
+                            <button className="danger-btn" type="submit">Cancel run</button>
                           </form>
                         ) : null}
                       </div>

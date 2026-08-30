@@ -6,7 +6,7 @@ import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CaseRecord, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
+import type { CaseRecord, ConnectorAuthType, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
 
 function requiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -42,7 +42,7 @@ function shouldMockFail(payload: Record<string, unknown>) {
   return payload.force_failure === true;
 }
 
-async function executeConnector(run: WorkflowRunRecord, connector: Pick<ConnectorRecord, "type" | "endpoint_url"> | null) {
+async function executeConnector(run: WorkflowRunRecord, connector: Pick<ConnectorRecord, "type" | "endpoint_url" | "auth_type" | "secret_ref"> | null) {
   if (!connector || connector.type === "mock_internal_api") {
     const failed = shouldMockFail(run.payload);
 
@@ -66,12 +66,19 @@ async function executeConnector(run: WorkflowRunRecord, connector: Pick<Connecto
   }
 
   try {
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "idempotency-key": run.idempotency_key
+    };
+
+    if (connector.secret_ref) {
+      headers["x-flowpilot-secret-ref"] = connector.secret_ref;
+      headers["x-flowpilot-auth-type"] = connector.auth_type;
+    }
+
     const response = await fetch(connector.endpoint_url, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "idempotency-key": run.idempotency_key
-      },
+      headers,
       body: JSON.stringify(run.payload)
     });
     const text = await response.text();
@@ -1006,6 +1013,8 @@ export async function createConnectorAction(formData: FormData) {
   const name = requiredString(formData, "name");
   const endpointUrl = requiredString(formData, "endpoint_url");
   const connectorType = requiredString(formData, "type") || "mock_internal_api";
+  const authType = requiredString(formData, "auth_type") || "none";
+  const secretRef = requiredString(formData, "secret_ref");
 
   if (!name) {
     redirect("/settings?error=missing_connector");
@@ -1015,8 +1024,16 @@ export async function createConnectorAction(formData: FormData) {
     redirect("/settings?error=invalid_connector");
   }
 
+  if (!["none", "bearer_token", "api_key_header", "hmac_signature", "basic_auth"].includes(authType)) {
+    redirect("/settings?error=invalid_connector_auth");
+  }
+
   if (connectorType === "custom_webhook" && !endpointUrl) {
     redirect("/settings?error=missing_connector_url");
+  }
+
+  if (authType !== "none" && !secretRef) {
+    redirect("/settings?error=missing_secret_ref");
   }
 
   const { data: connector, error } = await supabase
@@ -1026,7 +1043,8 @@ export async function createConnectorAction(formData: FormData) {
       name,
       type: connectorType as ConnectorType,
       endpoint_url: endpointUrl || null,
-      auth_type: "none",
+      auth_type: authType as ConnectorAuthType,
+      secret_ref: secretRef || null,
       headers: {},
       active: true,
       created_by: user.id
@@ -1045,7 +1063,7 @@ export async function createConnectorAction(formData: FormData) {
     actor_type: "user",
     event_type: "CONNECTOR_CREATED",
     event_summary: `Admin created connector: ${name}.`,
-    metadata: { connector_id: connector.id, type: connectorType }
+    metadata: { connector_id: connector.id, type: connectorType, auth_type: authType, has_secret_ref: Boolean(secretRef) }
   });
 
   revalidatePath("/settings");
@@ -1165,7 +1183,7 @@ export async function executeWorkflowRunAction(formData: FormData) {
   const admin = createAdminClient();
   const startedAt = Date.now();
   const { data: connector } = run.connector_id
-    ? await admin.from("connectors").select("type, endpoint_url").eq("id", run.connector_id).eq("workspace_id", profile.workspace_id).maybeSingle<Pick<ConnectorRecord, "type" | "endpoint_url">>()
+    ? await admin.from("connectors").select("type, endpoint_url, auth_type, secret_ref").eq("id", run.connector_id).eq("workspace_id", profile.workspace_id).maybeSingle<Pick<ConnectorRecord, "type" | "endpoint_url" | "auth_type" | "secret_ref">>()
     : { data: null };
   const { data: attempts } = await admin
     .from("execution_attempts")
@@ -1232,6 +1250,65 @@ export async function executeWorkflowRunAction(formData: FormData) {
       response_status: result.responseStatus,
       response_body: result.responseBody,
       connector_type: connector?.type ?? "mock_internal_api"
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${run.case_id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${run.case_id}`);
+}
+
+export async function cancelWorkflowRunAction(formData: FormData) {
+  const runId = requiredString(formData, "workflow_run_id");
+  const reason = requiredString(formData, "reason");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect("/cases?error=workflow_run_forbidden");
+  }
+
+  const { data: run, error: runError } = await supabase.from("workflow_runs").select("*").eq("id", runId).maybeSingle<WorkflowRunRecord>();
+
+  if (runError || !run || !["pending", "queued", "running", "failed", "retrying"].includes(run.status)) {
+    console.error("Workflow run is not cancellable", runError);
+    redirect(run?.case_id ? `/cases/${run.case_id}?error=workflow_cancel_failed` : "/cases?error=workflow_cancel_failed");
+  }
+
+  const admin = createAdminClient();
+  await admin
+    .from("workflow_runs")
+    .update({
+      status: "cancelled",
+      failure_reason: reason || "Cancelled by reviewer/admin.",
+      completed_at: new Date().toISOString()
+    })
+    .eq("id", run.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin
+    .from("cases")
+    .update({ status: "closed" })
+    .eq("id", run.case_id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: run.case_id,
+    workflow_run_id: run.id,
+    event_type: "WORKFLOW_RUN_CANCELLED",
+    event_summary: "Reviewer/admin cancelled the workflow run.",
+    metadata: {
+      previous_status: run.status,
+      next_status: "cancelled",
+      reason: reason || null
     }
   });
 

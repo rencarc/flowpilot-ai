@@ -24,6 +24,14 @@ function errorText(error?: string) {
     return "Webhook connectors require an endpoint URL.";
   }
 
+  if (error === "invalid_connector_auth") {
+    return "Connector auth type is invalid.";
+  }
+
+  if (error === "missing_secret_ref") {
+    return "Secret ref is required for this auth type.";
+  }
+
   return null;
 }
 
@@ -73,7 +81,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     </select>
                   </label>
                   <label><span>Endpoint URL</span><input className="input" name="endpoint_url" placeholder="https://example.com/webhook/flowpilot" /></label>
-                  <p className="muted">Webhook execution runs only on the backend and sends the idempotency key as a request header. Secret-based auth is intentionally not exposed in this UI yet.</p>
+                  <label>
+                    <span>Auth type</span>
+                    <select className="input" name="auth_type" defaultValue="none">
+                      <option value="none">None</option>
+                      <option value="bearer_token">Bearer token</option>
+                      <option value="api_key_header">API key header</option>
+                      <option value="hmac_signature">HMAC signature</option>
+                      <option value="basic_auth">Basic auth</option>
+                    </select>
+                  </label>
+                  <label><span>Secret ref</span><input className="input" name="secret_ref" placeholder="vault://flowpilot/connectors/payroll-api" /></label>
+                  <p className="muted">Store only a secret reference here. The actual credential must live in a backend vault or deployment secret, never in browser code or workflow payloads.</p>
                   <button className="primary-btn full-width" type="submit">Create connector</button>
                 </form>
               </details>
@@ -82,7 +101,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   <article className="template-card" key={connector.id}>
                     <div className="row-between"><h3>{connector.name}</h3><Tag tone={connector.active ? "approved" : "pending"}>{connector.type}</Tag></div>
                     <p>{connector.endpoint_url ?? "No external URL. This connector runs as a local mock placeholder."}</p>
-                    <div className="kv"><Kv label="Auth" value={connector.auth_type} /><Kv label="Updated" value={formatDateTime(connector.updated_at)} /></div>
+                    <div className="kv">
+                      <Kv label="Auth" value={connector.auth_type} />
+                      <Kv label="Secret" value={connector.secret_ref ? "Configured by reference" : "None"} />
+                      <Kv label="Updated" value={formatDateTime(connector.updated_at)} />
+                    </div>
                   </article>
                 ))}
               </div>
