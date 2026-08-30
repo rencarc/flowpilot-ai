@@ -102,6 +102,7 @@ h1, h2, h3, p { margin-top: 0; }
 .detail-link { color: var(--brand); font-size: 12px; font-weight: 840; white-space: nowrap; }
 .detail-link::after { content: " ->"; }
 .tabs, .split-actions, .tags, .pill-list { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row-between { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .stack { display: grid; gap: 14px; }
 .full-width { width: 100%; justify-content: center; }
 .small-btn { min-height: 28px; border: 1px solid var(--line-strong); border-radius: 7px; background: #fffefa; color: var(--brand); display: inline-flex; align-items: center; justify-content: center; padding: 0 9px; font-size: 12px; font-weight: 840; }
