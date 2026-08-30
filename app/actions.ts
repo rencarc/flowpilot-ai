@@ -6,7 +6,7 @@ import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CaseRecord } from "@/lib/supabase/types";
+import type { CaseRecord, RiskLevel, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
 
 function requiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -632,6 +632,297 @@ export async function createWorkflowTemplateAction(formData: FormData) {
   });
 
   revalidatePath("/workflows");
+  revalidatePath("/audit");
+  redirect("/workflows");
+}
+
+export async function matchWorkflowTemplateAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const workflowTemplateId = requiredString(formData, "workflow_template_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect(`/cases/${caseId}?error=workflow_forbidden`);
+  }
+
+  if (!workflowTemplateId) {
+    redirect(`/cases/${caseId}?error=missing_workflow_match`);
+  }
+
+  const { data: visibleCase, error: caseError } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("id", caseId)
+    .maybeSingle<CaseRecord>();
+
+  if (caseError || !visibleCase) {
+    console.error("Unauthorized or missing case for workflow match", caseError);
+    redirect("/cases?error=case_not_visible");
+  }
+
+  const { data: template, error: templateError } = await supabase
+    .from("workflow_templates")
+    .select("id, name, lifecycle_status, active")
+    .eq("id", workflowTemplateId)
+    .maybeSingle<{ id: string; name: string; lifecycle_status: string; active: boolean }>();
+
+  if (templateError || !template || !["approved", "active"].includes(template.lifecycle_status)) {
+    console.error("Missing or unapproved workflow template", templateError);
+    redirect(`/cases/${visibleCase.id}?error=workflow_match_failed`);
+  }
+
+  const admin = createAdminClient();
+  const existingOutput = visibleCase.ai_output ?? {};
+  const aiOutput = {
+    ...existingOutput,
+    matched_workflow: {
+      id: template.id,
+      name: template.name,
+      matched_by: user.id,
+      matched_at: new Date().toISOString()
+    }
+  };
+
+  const { error: updateError } = await admin
+    .from("cases")
+    .update({
+      matched_workflow_template_id: template.id,
+      workflow_template_proposal_id: null,
+      ai_output: aiOutput
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to match workflow template", updateError);
+    redirect(`/cases/${visibleCase.id}?error=workflow_match_failed`);
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: visibleCase.id,
+    event_type: "WORKFLOW_TEMPLATE_MATCHED",
+    event_summary: `Reviewer matched approved workflow template: ${template.name}.`,
+    metadata: {
+      workflow_template_id: template.id,
+      workflow_template_name: template.name,
+      previous_status: visibleCase.status
+    }
+  });
+
+  revalidatePath("/cases");
+  revalidatePath("/review");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${visibleCase.id}`);
+}
+
+export async function createWorkflowProposalAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect(`/cases/${caseId}?error=workflow_forbidden`);
+  }
+
+  const { data: visibleCase, error: caseError } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("id", caseId)
+    .maybeSingle<CaseRecord>();
+
+  if (caseError || !visibleCase) {
+    console.error("Unauthorized or missing case for workflow proposal", caseError);
+    redirect("/cases?error=case_not_visible");
+  }
+
+  const requiredFields = [
+    "requester",
+    "business justification",
+    "approval evidence",
+    ...(visibleCase.department ? ["department"] : []),
+    ...(visibleCase.policy_evidence_status !== "found" ? ["policy evidence"] : [])
+  ];
+  const proposalName = `${visibleCase.category ?? visibleCase.department ?? "Operations"} workflow proposal`;
+  const admin = createAdminClient();
+  const { data: proposal, error: proposalError } = await admin
+    .from("workflow_template_proposals")
+    .insert({
+      workspace_id: profile.workspace_id,
+      source_case_id: visibleCase.id,
+      name: proposalName,
+      description: `Governed workflow proposal drafted from case: ${visibleCase.title}.`,
+      category: visibleCase.category ?? "General intake",
+      trigger_condition: visibleCase.raw_request.slice(0, 220),
+      required_fields: requiredFields,
+      risk_level: (visibleCase.risk_level ?? "medium") as RiskLevel,
+      requires_review: true,
+      suggested_steps: [
+        "Validate requester authority and business justification.",
+        "Confirm required policy evidence and missing information.",
+        "Preview payload before any backend connector handoff.",
+        "Require reviewer/admin approval before execution."
+      ],
+      payload_schema: {
+        case_id: "string",
+        requester: "string",
+        department: "string",
+        approval_evidence: "string",
+        policy_citations: "array"
+      },
+      connector_type_suggestion: "mock_internal_api",
+      policy_evidence: Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [],
+      limitations: [
+        "Draft proposal only.",
+        "Cannot execute until an admin converts it into an approved workflow template.",
+        "Connector configuration is required before production handoff."
+      ],
+      status: "under_review"
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (proposalError || !proposal) {
+    console.error("Failed to create workflow proposal", proposalError);
+    redirect(`/cases/${visibleCase.id}?error=proposal_failed`);
+  }
+
+  const existingOutput = visibleCase.ai_output ?? {};
+  await admin
+    .from("cases")
+    .update({
+      status: "no_template_match",
+      workflow_template_proposal_id: proposal.id,
+      ai_output: {
+        ...existingOutput,
+        workflow_proposal: {
+          id: proposal.id,
+          name: proposalName,
+          status: "under_review",
+          created_at: new Date().toISOString()
+        }
+      },
+      human_review_required: true
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "system",
+    case_id: visibleCase.id,
+    event_type: "WORKFLOW_PROPOSAL_CREATED",
+    event_summary: "Draft workflow proposal created for a case without an approved template match.",
+    metadata: {
+      workflow_template_proposal_id: proposal.id,
+      proposal_name: proposalName,
+      source: "governed_fallback"
+    }
+  });
+
+  revalidatePath("/cases");
+  revalidatePath("/review");
+  revalidatePath("/workflows");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${visibleCase.id}`);
+}
+
+export async function convertWorkflowProposalAction(formData: FormData) {
+  const proposalId = requiredString(formData, "proposal_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/workflows?error=workflow_forbidden");
+  }
+
+  const { data: proposal, error: proposalError } = await supabase
+    .from("workflow_template_proposals")
+    .select("*")
+    .eq("id", proposalId)
+    .maybeSingle<WorkflowTemplateProposalRecord>();
+
+  if (proposalError || !proposal || proposal.status === "converted") {
+    console.error("Missing or already converted workflow proposal", proposalError);
+    redirect("/workflows?error=convert_proposal_failed");
+  }
+
+  const admin = createAdminClient();
+  const { data: template, error: templateError } = await admin
+    .from("workflow_templates")
+    .insert({
+      workspace_id: profile.workspace_id,
+      name: proposal.name,
+      description: proposal.description,
+      category: proposal.category,
+      trigger_condition: proposal.trigger_condition,
+      required_fields: proposal.required_fields,
+      risk_level: proposal.risk_level,
+      requires_review: proposal.requires_review,
+      payload_schema: proposal.payload_schema,
+      active: true,
+      lifecycle_status: "approved",
+      created_from_proposal_id: proposal.id
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (templateError || !template) {
+    console.error("Failed to convert workflow proposal", templateError);
+    redirect("/workflows?error=convert_proposal_failed");
+  }
+
+  await admin
+    .from("workflow_template_proposals")
+    .update({
+      status: "converted",
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString()
+    })
+    .eq("id", proposal.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin
+    .from("cases")
+    .update({
+      matched_workflow_template_id: template.id
+    })
+    .eq("workflow_template_proposal_id", proposal.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: proposal.source_case_id,
+    event_type: "WORKFLOW_PROPOSAL_CONVERTED",
+    event_summary: `Admin converted workflow proposal into approved template: ${proposal.name}.`,
+    metadata: {
+      workflow_template_proposal_id: proposal.id,
+      workflow_template_id: template.id
+    }
+  });
+
+  revalidatePath("/workflows");
+  revalidatePath("/cases");
+  if (proposal.source_case_id) {
+    revalidatePath(`/cases/${proposal.source_case_id}`);
+  }
   revalidatePath("/audit");
   redirect("/workflows");
 }

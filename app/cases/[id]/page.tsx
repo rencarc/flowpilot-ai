@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { analyzeCaseAction, checkPolicyEvidenceAction, provideCaseInfoAction, reviewCaseAction } from "@/app/actions";
+import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAction, matchWorkflowTemplateAction, provideCaseInfoAction, reviewCaseAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
+import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates } from "@/lib/workflows";
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -85,6 +86,11 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const { profile } = await getCurrentUserContext();
   const canAnalyze = profile?.role === "reviewer" || profile?.role === "admin";
   const canProvideInfo = profile?.user_id === persistedCase?.created_by && persistedCase?.status === "needs_info";
+  const workflowTemplates = canAnalyze ? await getVisibleWorkflowTemplates() : [];
+  const workflowProposals = canAnalyze ? await getVisibleWorkflowTemplateProposals() : [];
+  const approvedWorkflowTemplates = workflowTemplates.filter((template) => template.lifecycle_status === "approved" || template.lifecycle_status === "active");
+  const matchedWorkflow = approvedWorkflowTemplates.find((template) => template.id === persistedCase?.matched_workflow_template_id);
+  const workflowProposal = workflowProposals.find((proposal) => proposal.id === persistedCase?.workflow_template_proposal_id);
   const policyCitations = persistedCase ? policyCitationsFrom(persistedCase.ai_output) : [];
   const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
   const requesterUpdate = persistedCase ? latestRequesterUpdate(persistedCase.ai_output) : null;
@@ -115,6 +121,10 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {error === "missing_update" ? <p className="auth-message error">Please add the requested information before submitting.</p> : null}
         {error === "update_forbidden" ? <p className="auth-message error">Only the original requester can add information to this case.</p> : null}
         {error === "update_failed" ? <p className="auth-message error">Additional information could not be saved. Check Supabase logs and try again.</p> : null}
+        {error === "workflow_forbidden" ? <p className="auth-message error">Workflow matching is restricted to reviewer/admin roles.</p> : null}
+        {error === "missing_workflow_match" ? <p className="auth-message error">Choose an approved workflow before matching this case.</p> : null}
+        {error === "workflow_match_failed" ? <p className="auth-message error">Workflow match could not be saved.</p> : null}
+        {error === "proposal_failed" ? <p className="auth-message error">Workflow proposal could not be created.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -197,6 +207,39 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                   <input type="hidden" name="decision" value="reject" />
                   <input className="input" name="note" placeholder="Reason for rejection" />
                   <button className="danger-btn" type="submit">Reject</button>
+                </form>
+              </div>
+              <h3>Workflow match</h3>
+              <div className="quote-box">
+                {matchedWorkflow ? (
+                  <>
+                    <strong>{matchedWorkflow.name}</strong>
+                    <p>{matchedWorkflow.description ?? "Approved workflow template selected for this case."}</p>
+                  </>
+                ) : workflowProposal ? (
+                  <>
+                    <strong>{workflowProposal.name}</strong>
+                    <p>Proposal status: {workflowProposal.status}. It cannot execute until admin conversion.</p>
+                  </>
+                ) : (
+                  <p>No approved workflow has been matched yet.</p>
+                )}
+              </div>
+              <h3>Workflow routing</h3>
+              <div className="review-actions">
+                <form className="review-form" action={matchWorkflowTemplateAction}>
+                  <input type="hidden" name="case_id" value={persistedCase.id} />
+                  <select className="input" name="workflow_template_id" defaultValue={matchedWorkflow?.id ?? ""}>
+                    <option value="">Choose approved workflow</option>
+                    {approvedWorkflowTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>{template.name}</option>
+                    ))}
+                  </select>
+                  <button className="secondary-btn" type="submit">Match workflow</button>
+                </form>
+                <form action={createWorkflowProposalAction}>
+                  <input type="hidden" name="case_id" value={persistedCase.id} />
+                  <button className="secondary-btn full-width" type="submit">Create no-match proposal</button>
                 </form>
               </div>
               <h3>AI output</h3>

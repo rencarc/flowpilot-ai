@@ -130,7 +130,8 @@ export function needsReview(item: CaseRecord) {
     item.risk_level === "high" ||
     item.status === "needs_info" ||
     item.status === "in_review" ||
-    item.status === "policy_evidence_missing"
+    item.status === "policy_evidence_missing" ||
+    item.status === "no_template_match"
   );
 }
 

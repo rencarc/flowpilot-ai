@@ -1,4 +1,4 @@
-import { createWorkflowTemplateAction } from "@/app/actions";
+import { convertWorkflowProposalAction, createWorkflowTemplateAction } from "@/app/actions";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, formatRisk, getCurrentUserContext } from "@/lib/cases";
 import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates } from "@/lib/workflows";
@@ -57,6 +57,10 @@ function errorText(error?: string) {
     return "Could not create the workflow template.";
   }
 
+  if (error === "convert_proposal_failed") {
+    return "Could not convert the workflow proposal.";
+  }
+
   return null;
 }
 
@@ -82,7 +86,7 @@ function WorkflowTemplateCard({ template }: { template: WorkflowTemplateRecord }
   );
 }
 
-function ProposalCard({ proposal }: { proposal: WorkflowTemplateProposalRecord }) {
+function ProposalCard({ proposal, canConvert }: { proposal: WorkflowTemplateProposalRecord; canConvert: boolean }) {
   return (
     <article className="template-card">
       <div className="row-between">
@@ -102,6 +106,12 @@ function ProposalCard({ proposal }: { proposal: WorkflowTemplateProposalRecord }
       ) : (
         <p className="muted">No suggested steps recorded.</p>
       )}
+      {canConvert && proposal.status !== "converted" ? (
+        <form className="review-actions" action={convertWorkflowProposalAction}>
+          <input type="hidden" name="proposal_id" value={proposal.id} />
+          <button className="primary-btn full-width" type="submit">Convert to approved workflow</button>
+        </form>
+      ) : null}
     </article>
   );
 }
@@ -171,7 +181,7 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
             </Panel>
             <Panel title="AI proposed workflows" tag={<Tag tone="review">{proposals.length} proposals</Tag>}>
               <div className="template-list">
-                {proposals.length > 0 ? proposals.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} />) : <p className="muted">No AI workflow proposals have been recorded yet.</p>}
+                {proposals.length > 0 ? proposals.map((proposal) => <ProposalCard canConvert={canManageWorkflows} key={proposal.id} proposal={proposal} />) : <p className="muted">No AI workflow proposals have been recorded yet.</p>}
               </div>
             </Panel>
           </div>
