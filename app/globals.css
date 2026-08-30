@@ -81,11 +81,12 @@ h1, h2, h3, p { margin-top: 0; }
 .panel-header { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 13px 16px; }
 .panel-header h2 { margin: 0; color: var(--ink); font-size: 16px; }
 .panel-body { padding: 16px; }
-.monitor-grid, .grid-2, .create-layout, .knowledge-layout, .policy-library-layout, .settings-grid, .workflow-grid, .detail-grid, .structure-grid { display: grid; gap: 16px; }
+.monitor-grid, .grid-2, .create-layout, .knowledge-layout, .knowledge-top-grid, .policy-library-layout, .settings-grid, .workflow-grid, .detail-grid, .structure-grid { display: grid; gap: 16px; }
 .monitor-grid { grid-template-columns: minmax(0,1fr) 330px; }
 .grid-2, .workflow-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
 .create-layout, .settings-grid { grid-template-columns: minmax(0,1fr) 380px; }
 .knowledge-layout { grid-template-columns: 380px minmax(0,1fr); align-items: start; }
+.knowledge-top-grid { grid-template-columns: minmax(0,1.2fr) minmax(320px,.8fr); align-items: start; }
 .policy-library-layout { grid-template-columns: 360px minmax(0,1fr); align-items: start; }
 .detail-grid { grid-template-columns: minmax(260px,.88fr) minmax(380px,1.18fr) minmax(310px,.94fr); align-items: start; }
 .structure-grid { grid-template-columns: .9fr 1.1fr 1fr; }
@@ -209,7 +210,7 @@ h1, h2, h3, p { margin-top: 0; }
 
 @keyframes slowDrift { from { transform: scale(1.03) translateY(0); } to { transform: scale(1.08) translateY(-16px); } }
 @media (max-width: 1180px) {
-  .metric-strip, .monitor-grid, .grid-2, .create-layout, .knowledge-layout, .policy-library-layout, .detail-grid, .structure-grid, .workflow-grid, .settings-grid, .architecture-hero, .architecture-layers, .safety-grid, .compare-table, .failure-grid, .post-gate-row, .boundary-strip { grid-template-columns: 1fr; }
+  .metric-strip, .monitor-grid, .grid-2, .create-layout, .knowledge-layout, .knowledge-top-grid, .policy-library-layout, .detail-grid, .structure-grid, .workflow-grid, .settings-grid, .architecture-hero, .architecture-layers, .safety-grid, .compare-table, .failure-grid, .post-gate-row, .boundary-strip { grid-template-columns: 1fr; }
   .boundary-strip span { border-right: 0; border-bottom: 1px solid var(--line); }
   .boundary-strip span:last-child { border-bottom: 0; }
   .system-map { grid-template-columns: 1fr; }

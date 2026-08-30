@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
-import { starterPolicies } from "@/lib/policy-starter-pack";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CaseRecord } from "@/lib/supabase/types";
@@ -337,89 +336,6 @@ export async function createPolicyAction(formData: FormData) {
     metadata: {
       chunks: chunks.length,
       retrieval_mode: "keyword_dev"
-    }
-  });
-
-  revalidatePath("/knowledge");
-  revalidatePath("/audit");
-  redirect("/knowledge");
-}
-
-export async function seedStarterPoliciesAction() {
-  const { supabase, user, profile } = await getCurrentUserContext();
-
-  if (!user || !profile) {
-    redirect("/login");
-  }
-
-  if (profile.role !== "admin") {
-    redirect("/knowledge?error=policy_forbidden");
-  }
-
-  const { data: existingPolicies, error: existingError } = await supabase
-    .from("policies")
-    .select("title")
-    .eq("workspace_id", profile.workspace_id)
-    .returns<Array<{ title: string }>>();
-
-  if (existingError) {
-    console.error("Failed to inspect existing starter policies", existingError);
-    redirect("/knowledge?error=create_failed");
-  }
-
-  const existingTitles = new Set(existingPolicies.map((policy) => policy.title));
-  const policiesToCreate = starterPolicies.filter((policy) => !existingTitles.has(policy.title));
-
-  for (const starterPolicy of policiesToCreate) {
-    const { data: policy, error: policyError } = await supabase
-      .from("policies")
-      .insert({
-        workspace_id: profile.workspace_id,
-        title: starterPolicy.title,
-        description: starterPolicy.description,
-        source_type: starterPolicy.sourceUrl.startsWith("internal://") ? "internal_starter" : "regulatory_reference",
-        source_url: starterPolicy.sourceUrl,
-        created_by: user.id
-      })
-      .select("id")
-      .single<{ id: string }>();
-
-    if (policyError || !policy) {
-      console.error("Failed to seed starter policy", policyError);
-      redirect("/knowledge?error=create_failed");
-    }
-
-    const chunks = splitPolicyContent(starterPolicy.content);
-    const { error: chunkError } = await supabase.from("policy_chunks").insert(
-      chunks.map((chunk, index) => ({
-        policy_id: policy.id,
-        workspace_id: profile.workspace_id,
-        chunk_index: index,
-        content: chunk,
-        metadata: {
-          starter_pack: true,
-          retrieval_mode: "keyword_dev",
-          embedding_status: "pending_openai_credits"
-        }
-      }))
-    );
-
-    if (chunkError) {
-      console.error("Failed to seed starter policy chunks", chunkError);
-      redirect("/knowledge?error=chunk_failed");
-    }
-  }
-
-  await supabase.from("audit_logs").insert({
-    workspace_id: profile.workspace_id,
-    actor_id: user.id,
-    actor_type: "user",
-    event_type: "POLICY_STARTER_PACK_SEEDED",
-    event_summary: `Admin seeded ${policiesToCreate.length} starter policy source(s).`,
-    metadata: {
-      requested: starterPolicies.length,
-      created: policiesToCreate.length,
-      skipped_existing: starterPolicies.length - policiesToCreate.length
     }
   });
 
