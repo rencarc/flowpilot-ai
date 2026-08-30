@@ -30,6 +30,14 @@ function chunkHeading(chunk: PolicyChunkRecord) {
   return firstLine && firstLine.length < 80 ? firstLine : `Section ${chunk.chunk_index + 1}`;
 }
 
+function referenceLabel(sourceUrl: string | null) {
+  if (!sourceUrl) {
+    return "No reference attached";
+  }
+
+  return sourceUrl.startsWith("internal://") ? "Internal reference" : "Regulatory reference";
+}
+
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ error?: string; policy?: string }> }) {
   const { error, policy: selectedPolicyId } = await searchParams;
   const { profile } = await getCurrentUserContext();
@@ -43,7 +51,17 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
 
   return (
     <AppShell>
-      <PageHeader title="Knowledge" subtitle="Workspace policy library used to ground risk checks, missing information, and citations." />
+      <PageHeader
+        title="Knowledge"
+        subtitle="Workspace policy library used to ground risk checks, missing information, and citations."
+        action={
+          canReadPolicyLibrary && canManagePolicies ? (
+            <form action={seedStarterPoliciesAction}>
+              <button className="primary-btn" type="submit">Seed starter pack</button>
+            </form>
+          ) : null
+        }
+      />
       {message ? <p className="auth-message error">{message}</p> : null}
       {canReadPolicyLibrary ? (
         <>
@@ -73,14 +91,14 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                       <h3>{selectedPolicy.title}</h3>
                       <p className="muted">{selectedPolicy.description ?? "No description provided."}</p>
                     </div>
-                    {selectedPolicy.source_url ? (
-                      <a className="secondary-btn" href={selectedPolicy.source_url} target="_blank" rel="noreferrer">Open source</a>
-                    ) : null}
                   </div>
                   <div className="structure-grid">
                     <div className="quote-box"><strong>Source type</strong><br />{selectedPolicy.source_type}</div>
                     <div className="quote-box"><strong>Chunk count</strong><br />{selectedChunks.length}</div>
-                    <div className="quote-box"><strong>Visibility</strong><br />Reviewer/admin library; requester sees case citations only.</div>
+                    <div className="quote-box">
+                      <strong>{referenceLabel(selectedPolicy.source_url)}</strong><br />
+                      {selectedPolicy.source_url ? <a className="text-link" href={selectedPolicy.source_url} target="_blank" rel="noreferrer">{selectedPolicy.source_url}</a> : "This policy has no external reference URL."}
+                    </div>
                   </div>
                   <h3>Outline</h3>
                   <ol className="clean-list">
@@ -101,15 +119,10 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
               )}
             </Panel>
           </div>
-          <Panel title="Admin controls" tag={<Tag tone={canManagePolicies ? "approved" : "review"}>{canManagePolicies ? "Admin" : "Read only"}</Tag>}>
-            {canManagePolicies ? (
-              <div className="admin-policy-controls">
-                <div className="stack">
-                  <form action={seedStarterPoliciesAction}>
-                    <button className="primary-btn full-width" type="submit">Seed starter pack</button>
-                  </form>
-                  <div className="quote-box"><strong>Starter pack</strong><br />{starterPolicies.length} internal policy documents covering AI Act, GDPR, security, IAM, HR/payroll, handoff, vendor risk, and legal review.</div>
-                </div>
+          {canManagePolicies ? (
+            <Panel title="Policy maintenance" tag={<Tag tone="approved">Admin</Tag>}>
+              <details className="policy-maintenance">
+                <summary>Add custom policy</summary>
                 <form className="auth-form" action={createPolicyAction}>
                   <label><span>Title</span><input className="input" name="title" defaultValue="Privileged access approval policy" required /></label>
                   <label><span>Description</span><input className="input" name="description" defaultValue="Controls temporary admin access and approval evidence." /></label>
@@ -125,11 +138,10 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                   </label>
                   <button className="secondary-btn full-width" type="submit">Add custom policy</button>
                 </form>
-              </div>
-            ) : (
-              <p className="muted">Policy management is limited to admins. Reviewers can inspect policy content and citations, but cannot modify sources.</p>
-            )}
-          </Panel>
+              </details>
+              <p className="muted">{starterPolicies.length} starter policies are available from the top action. Existing matching titles are skipped when seeded.</p>
+            </Panel>
+          ) : null}
         </>
       ) : (
         <Panel title="Policy citations only" tag={<Tag tone="review">Requester view</Tag>}>

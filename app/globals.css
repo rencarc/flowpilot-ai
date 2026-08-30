@@ -81,13 +81,12 @@ h1, h2, h3, p { margin-top: 0; }
 .panel-header { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 13px 16px; }
 .panel-header h2 { margin: 0; color: var(--ink); font-size: 16px; }
 .panel-body { padding: 16px; }
-.monitor-grid, .grid-2, .create-layout, .knowledge-layout, .policy-library-layout, .admin-policy-controls, .settings-grid, .workflow-grid, .detail-grid, .structure-grid { display: grid; gap: 16px; }
+.monitor-grid, .grid-2, .create-layout, .knowledge-layout, .policy-library-layout, .settings-grid, .workflow-grid, .detail-grid, .structure-grid { display: grid; gap: 16px; }
 .monitor-grid { grid-template-columns: minmax(0,1fr) 330px; }
 .grid-2, .workflow-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
 .create-layout, .settings-grid { grid-template-columns: minmax(0,1fr) 380px; }
 .knowledge-layout { grid-template-columns: 380px minmax(0,1fr); align-items: start; }
 .policy-library-layout { grid-template-columns: 360px minmax(0,1fr); align-items: start; }
-.admin-policy-controls { grid-template-columns: 320px minmax(0,1fr); align-items: start; }
 .detail-grid { grid-template-columns: minmax(260px,.88fr) minmax(380px,1.18fr) minmax(310px,.94fr); align-items: start; }
 .structure-grid { grid-template-columns: .9fr 1.1fr 1fr; }
 .table-row { width: 100%; border-bottom: 1px solid var(--line); color: var(--text); text-align: left; display: grid; grid-template-columns: minmax(260px,1.45fr) 100px minmax(150px,1fr) 120px 110px 92px; gap: 12px; padding: 13px 16px; align-items: center; transition: background 160ms ease, transform 160ms ease; }
@@ -103,6 +102,7 @@ h1, h2, h3, p { margin-top: 0; }
 .tabs, .split-actions, .tags, .pill-list { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .stack { display: grid; gap: 14px; }
 .full-width { width: 100%; justify-content: center; }
+.text-link { color: var(--brand); font-weight: 760; word-break: break-word; }
 .tabs { margin-bottom: 14px; }
 .tab { border: 1px solid var(--line); background: #fffefa; color: var(--muted); border-radius: 999px; padding: 8px 12px; font-weight: 720; }
 .tab.active { background: #e6eedf; color: var(--ink); }
@@ -127,6 +127,8 @@ h1, h2, h3, p { margin-top: 0; }
 .policy-detail-head h3, .policy-detail h3 { color: var(--ink); margin-bottom: 6px; }
 .policy-source-reader .quote-box { margin-top: 0; }
 .policy-source-reader p { margin: 8px 0 0; white-space: pre-wrap; }
+.policy-maintenance summary { color: var(--ink); cursor: pointer; font-weight: 800; margin-bottom: 12px; }
+.policy-maintenance[open] summary { margin-bottom: 16px; }
 .action-row, .policy-row, .template-card, .example-btn, .failure-row { border: 1px solid var(--line); border-radius: 9px; background: #fffefa; padding: 13px; display: flex; justify-content: space-between; gap: 12px; transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
 .template-card, .example-btn, .failure-row { display: block; }
 .action-row:hover, .policy-row:hover, .template-card:hover, .example-btn:hover { transform: translateY(-2px); border-color: var(--line-strong); box-shadow: 0 12px 28px rgba(36,70,30,.08); }
@@ -207,7 +209,7 @@ h1, h2, h3, p { margin-top: 0; }
 
 @keyframes slowDrift { from { transform: scale(1.03) translateY(0); } to { transform: scale(1.08) translateY(-16px); } }
 @media (max-width: 1180px) {
-  .metric-strip, .monitor-grid, .grid-2, .create-layout, .knowledge-layout, .policy-library-layout, .admin-policy-controls, .detail-grid, .structure-grid, .workflow-grid, .settings-grid, .architecture-hero, .architecture-layers, .safety-grid, .compare-table, .failure-grid, .post-gate-row, .boundary-strip { grid-template-columns: 1fr; }
+  .metric-strip, .monitor-grid, .grid-2, .create-layout, .knowledge-layout, .policy-library-layout, .detail-grid, .structure-grid, .workflow-grid, .settings-grid, .architecture-hero, .architecture-layers, .safety-grid, .compare-table, .failure-grid, .post-gate-row, .boundary-strip { grid-template-columns: 1fr; }
   .boundary-strip span { border-right: 0; border-bottom: 1px solid var(--line); }
   .boundary-strip span:last-child { border-bottom: 0; }
   .system-map { grid-template-columns: 1fr; }
