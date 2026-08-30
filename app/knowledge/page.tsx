@@ -35,27 +35,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
     <AppShell>
       <PageHeader title="Knowledge" subtitle="Workspace policy sources used to ground case risk checks and citations." />
       {message ? <p className="auth-message error">{message}</p> : null}
-      <div className="create-layout">
-        <Panel title="Policy sources" tag={<Tag tone="pending">Keyword retrieval</Tag>}>
-          {policies.length === 0 ? <p className="muted">No policy sources yet. Add one as an admin to test governed evidence retrieval.</p> : null}
-          {policies.map((policy) => {
-            const policyChunks = chunks.filter((chunk) => chunk.policy_id === policy.id);
-
-            return (
-              <article className="policy-row" key={policy.id}>
-                <div>
-                  <h3>{policy.title}</h3>
-                  <p>{policy.description ?? "No description provided."}</p>
-                  <p><strong>Source:</strong> {policy.source_url ?? policy.source_type}</p>
-                </div>
-                <div className="tags">
-                  <Tag>{policy.source_type}</Tag>
-                  <Tag tone="approved">{policyChunks.length} chunks</Tag>
-                </div>
-              </article>
-            );
-          })}
-        </Panel>
+      <div className="knowledge-layout">
         <Panel title="Add policy" tag={<Tag tone={canManagePolicies ? "approved" : "review"}>{canManagePolicies ? "Admin" : "Read only"}</Tag>}>
           {canManagePolicies ? (
             <form className="auth-form" action={createPolicyAction}>
@@ -76,6 +56,26 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
           ) : (
             <p className="muted">Policy management is limited to admins. Requesters can still benefit from policy-grounded status updates on their cases.</p>
           )}
+        </Panel>
+        <Panel title="Policy sources" tag={<Tag tone="pending">Keyword retrieval</Tag>}>
+          {policies.length === 0 ? <p className="muted">No policy sources yet. Add one as an admin to test governed evidence retrieval.</p> : null}
+          {policies.map((policy) => {
+            const policyChunks = chunks.filter((chunk) => chunk.policy_id === policy.id);
+
+            return (
+              <article className="policy-row" key={policy.id}>
+                <div>
+                  <h3>{policy.title}</h3>
+                  <p>{policy.description ?? "No description provided."}</p>
+                  <p><strong>Source:</strong> {policy.source_url ?? policy.source_type}</p>
+                </div>
+                <div className="tags">
+                  <Tag>{policy.source_type}</Tag>
+                  <Tag tone="approved">{policyChunks.length} chunks</Tag>
+                </div>
+              </article>
+            );
+          })}
         </Panel>
       </div>
       <Panel title="Retrieval status" tag={<Tag tone="pending">Step 6</Tag>}>
