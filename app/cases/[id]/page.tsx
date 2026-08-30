@@ -3,7 +3,7 @@ import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAct
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
-import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates } from "@/lib/workflows";
+import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates, recommendWorkflowTemplate } from "@/lib/workflows";
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -90,6 +90,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const workflowProposals = canAnalyze ? await getVisibleWorkflowTemplateProposals() : [];
   const approvedWorkflowTemplates = workflowTemplates.filter((template) => template.lifecycle_status === "approved" || template.lifecycle_status === "active");
   const matchedWorkflow = approvedWorkflowTemplates.find((template) => template.id === persistedCase?.matched_workflow_template_id);
+  const recommendedWorkflow = persistedCase ? recommendWorkflowTemplate(persistedCase, approvedWorkflowTemplates) : null;
   const workflowProposal = workflowProposals.find((proposal) => proposal.id === persistedCase?.workflow_template_proposal_id);
   const policyCitations = persistedCase ? policyCitationsFrom(persistedCase.ai_output) : [];
   const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
@@ -225,11 +226,25 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                   <p>No approved workflow has been matched yet.</p>
                 )}
               </div>
+              {recommendedWorkflow && !matchedWorkflow ? (
+                <>
+                  <h3>Recommended workflow</h3>
+                  <div className="quote-box">
+                    <strong>{recommendedWorkflow.template.name}</strong>
+                    <p>{recommendedWorkflow.template.trigger_condition}</p>
+                    <div className="pill-list">
+                      <Tag tone="approved">score {recommendedWorkflow.score}</Tag>
+                      <Tag>{recommendedWorkflow.template.category}</Tag>
+                      <Tag tone={formatRisk(recommendedWorkflow.template.risk_level)}>{formatRisk(recommendedWorkflow.template.risk_level)}</Tag>
+                    </div>
+                  </div>
+                </>
+              ) : null}
               <h3>Workflow routing</h3>
               <div className="review-actions">
                 <form className="review-form" action={matchWorkflowTemplateAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
-                  <select className="input" name="workflow_template_id" defaultValue={matchedWorkflow?.id ?? ""}>
+                  <select className="input" name="workflow_template_id" defaultValue={matchedWorkflow?.id ?? recommendedWorkflow?.template.id ?? ""}>
                     <option value="">Choose approved workflow</option>
                     {approvedWorkflowTemplates.map((template) => (
                       <option key={template.id} value={template.id}>{template.name}</option>
