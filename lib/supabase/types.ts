@@ -30,6 +30,9 @@ export type ConnectorType =
   | "jira"
   | "service_now"
   | "power_automate";
+export type ConnectorAuthType = "none" | "bearer_token" | "api_key_header" | "hmac_signature" | "basic_auth";
+export type WorkflowRunStatus = "pending" | "queued" | "running" | "succeeded" | "failed" | "retrying" | "cancelled";
+export type ExecutionAttemptStatus = "pending" | "running" | "succeeded" | "failed" | "timeout";
 
 export interface Profile {
   id: string;
@@ -112,4 +115,53 @@ export interface WorkflowTemplateProposalRecord {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ConnectorRecord {
+  id: string;
+  workspace_id: string;
+  name: string;
+  type: ConnectorType;
+  endpoint_url: string | null;
+  auth_type: ConnectorAuthType;
+  secret_ref: string | null;
+  headers: Record<string, unknown>;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowRunRecord {
+  id: string;
+  workspace_id: string;
+  case_id: string;
+  workflow_template_id: string;
+  connector_id: string | null;
+  status: WorkflowRunStatus;
+  payload: Record<string, unknown>;
+  idempotency_key: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  failure_reason: string | null;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExecutionAttemptRecord {
+  id: string;
+  workflow_run_id: string;
+  workspace_id: string;
+  attempt_number: number;
+  status: ExecutionAttemptStatus;
+  request_payload: Record<string, unknown>;
+  response_status: number | null;
+  response_body: Record<string, unknown> | null;
+  error_message: string | null;
+  latency_ms: number | null;
+  created_at: string;
 }

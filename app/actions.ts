@@ -34,6 +34,10 @@ function parseJsonObject(value: string) {
   return parsed as Record<string, unknown>;
 }
 
+function idempotencyKeyFor(caseId: string, workflowTemplateId: string) {
+  return `case:${caseId}:workflow:${workflowTemplateId}`;
+}
+
 export async function createCaseAction(formData: FormData) {
   const { supabase, user, profile } = await getCurrentUserContext();
 
@@ -925,4 +929,146 @@ export async function convertWorkflowProposalAction(formData: FormData) {
   }
   revalidatePath("/audit");
   redirect("/workflows");
+}
+
+export async function createConnectorAction(formData: FormData) {
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/settings?error=connector_forbidden");
+  }
+
+  const name = requiredString(formData, "name");
+  const endpointUrl = requiredString(formData, "endpoint_url");
+
+  if (!name) {
+    redirect("/settings?error=missing_connector");
+  }
+
+  const { data: connector, error } = await supabase
+    .from("connectors")
+    .insert({
+      workspace_id: profile.workspace_id,
+      name,
+      type: "mock_internal_api",
+      endpoint_url: endpointUrl || null,
+      auth_type: "none",
+      headers: {},
+      active: true,
+      created_by: user.id
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error || !connector) {
+    console.error("Failed to create connector", error);
+    redirect("/settings?error=create_connector_failed");
+  }
+
+  await supabase.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: "CONNECTOR_CREATED",
+    event_summary: `Admin created connector: ${name}.`,
+    metadata: { connector_id: connector.id, type: "mock_internal_api" }
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/audit");
+  redirect("/settings");
+}
+
+export async function createWorkflowRunAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const connectorId = requiredString(formData, "connector_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect(`/cases/${caseId}?error=workflow_run_forbidden`);
+  }
+
+  const { data: visibleCase, error: caseError } = await supabase.from("cases").select("*").eq("id", caseId).maybeSingle<CaseRecord>();
+
+  if (caseError || !visibleCase || !visibleCase.matched_workflow_template_id || visibleCase.status !== "approved") {
+    console.error("Case is not ready for workflow run", caseError);
+    redirect(`/cases/${caseId}?error=workflow_run_not_ready`);
+  }
+
+  const { data: template, error: templateError } = await supabase
+    .from("workflow_templates")
+    .select("id, name, payload_schema, lifecycle_status, connector_id")
+    .eq("id", visibleCase.matched_workflow_template_id)
+    .maybeSingle<{ id: string; name: string; payload_schema: Record<string, unknown>; lifecycle_status: string; connector_id: string | null }>();
+
+  if (templateError || !template || !["approved", "active"].includes(template.lifecycle_status)) {
+    console.error("Workflow template is not executable", templateError);
+    redirect(`/cases/${caseId}?error=workflow_run_not_ready`);
+  }
+
+  const payload = {
+    case_id: visibleCase.id,
+    title: visibleCase.title,
+    requester: visibleCase.requester,
+    department: visibleCase.department,
+    risk_level: visibleCase.risk_level,
+    policy_citations: Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [],
+    schema: template.payload_schema
+  };
+  const idempotencyKey = idempotencyKeyFor(visibleCase.id, template.id);
+  const admin = createAdminClient();
+  const { data: run, error: runError } = await admin
+    .from("workflow_runs")
+    .upsert({
+      workspace_id: profile.workspace_id,
+      case_id: visibleCase.id,
+      workflow_template_id: template.id,
+      connector_id: connectorId || template.connector_id,
+      status: "queued",
+      payload,
+      idempotency_key: idempotencyKey,
+      approved_by: user.id,
+      approved_at: new Date().toISOString()
+    }, { onConflict: "idempotency_key" })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (runError || !run) {
+    console.error("Failed to create workflow run", runError);
+    redirect(`/cases/${caseId}?error=workflow_run_failed`);
+  }
+
+  await admin.from("execution_attempts").insert({
+    workflow_run_id: run.id,
+    workspace_id: profile.workspace_id,
+    attempt_number: 1,
+    status: "pending",
+    request_payload: payload
+  });
+
+  await admin.from("cases").update({ status: "ready_to_run" }).eq("id", visibleCase.id).eq("workspace_id", profile.workspace_id);
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "system",
+    case_id: visibleCase.id,
+    workflow_run_id: run.id,
+    event_type: "WORKFLOW_RUN_QUEUED",
+    event_summary: `Workflow run queued for approved template: ${template.name}.`,
+    metadata: { workflow_template_id: template.id, idempotency_key: idempotencyKey, connector_id: connectorId || template.connector_id }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${visibleCase.id}`);
 }

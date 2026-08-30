@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAction, matchWorkflowTemplateAction, provideCaseInfoAction, reviewCaseAction } from "@/app/actions";
+import { analyzeCaseAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, reviewCaseAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
+import { getExecutionAttemptsForRuns, getVisibleConnectors, getWorkflowRunsForCase } from "@/lib/execution";
 import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates, recommendWorkflowTemplate } from "@/lib/workflows";
 
 function isUuid(value: string) {
@@ -41,6 +42,13 @@ function policyCitationsFrom(output: Record<string, unknown> | null) {
 
 function citationKindLabel(citation: Record<string, unknown>) {
   return citation.source_kind === "governance_standard" ? "Governance standard" : "Workspace policy";
+}
+
+function formatLooseStatus(status: string) {
+  return status
+    .split("_")
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function latestReviewNote(output: Record<string, unknown> | null) {
@@ -88,6 +96,9 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const canProvideInfo = profile?.user_id === persistedCase?.created_by && persistedCase?.status === "needs_info";
   const workflowTemplates = canAnalyze ? await getVisibleWorkflowTemplates() : [];
   const workflowProposals = canAnalyze ? await getVisibleWorkflowTemplateProposals() : [];
+  const connectors = profile?.role === "admin" ? await getVisibleConnectors() : [];
+  const workflowRuns = persistedCase && canAnalyze ? await getWorkflowRunsForCase(persistedCase.id) : [];
+  const executionAttempts = await getExecutionAttemptsForRuns(workflowRuns.map((run) => run.id));
   const approvedWorkflowTemplates = workflowTemplates.filter((template) => template.lifecycle_status === "approved" || template.lifecycle_status === "active");
   const matchedWorkflow = approvedWorkflowTemplates.find((template) => template.id === persistedCase?.matched_workflow_template_id);
   const recommendedWorkflow = persistedCase ? recommendWorkflowTemplate(persistedCase, approvedWorkflowTemplates) : null;
@@ -126,6 +137,9 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {error === "missing_workflow_match" ? <p className="auth-message error">Choose an approved workflow before matching this case.</p> : null}
         {error === "workflow_match_failed" ? <p className="auth-message error">Workflow match could not be saved.</p> : null}
         {error === "proposal_failed" ? <p className="auth-message error">Workflow proposal could not be created.</p> : null}
+        {error === "workflow_run_forbidden" ? <p className="auth-message error">Workflow runs are restricted to reviewer/admin roles.</p> : null}
+        {error === "workflow_run_not_ready" ? <p className="auth-message error">Case must be approved and matched to an approved workflow before a run can be queued.</p> : null}
+        {error === "workflow_run_failed" ? <p className="auth-message error">Workflow run could not be queued.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -257,6 +271,48 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                   <button className="secondary-btn full-width" type="submit">Create no-match proposal</button>
                 </form>
               </div>
+              <h3>Workflow run</h3>
+              {matchedWorkflow && persistedCase.status === "approved" ? (
+                <form className="review-form" action={createWorkflowRunAction}>
+                  <input type="hidden" name="case_id" value={persistedCase.id} />
+                  <select className="input" name="connector_id" defaultValue="">
+                    <option value="">No connector / mock queue only</option>
+                    {connectors.map((connector) => <option key={connector.id} value={connector.id}>{connector.name}</option>)}
+                  </select>
+                  <button className="primary-btn" type="submit">Queue workflow run</button>
+                </form>
+              ) : (
+                <p className="muted">A workflow run can be queued only after the case is approved and matched to an approved workflow.</p>
+              )}
+              {workflowRuns.length > 0 ? (
+                <div className="template-list">
+                  {workflowRuns.map((run) => (
+                    <article className="template-card" key={run.id}>
+                      <div className="row-between"><h3>Run {run.id.slice(0, 8)}</h3><Tag tone={formatLooseStatus(run.status)}>{formatLooseStatus(run.status)}</Tag></div>
+                      <div className="kv">
+                        <Kv label="Idempotency key" value={run.idempotency_key} />
+                        <Kv label="Retry" value={`${run.retry_count} / ${run.max_retries}`} />
+                        <Kv label="Created" value={formatDateTime(run.created_at)} />
+                      </div>
+                      <h3>Payload preview</h3>
+                      <pre className="payload">{JSON.stringify(run.payload, null, 2)}</pre>
+                      <h3>Execution attempts</h3>
+                      <div className="timeline">
+                        {executionAttempts.filter((attempt) => attempt.workflow_run_id === run.id).map((attempt) => (
+                          <div className="timeline-item" key={attempt.id}>
+                            <div className="dot" />
+                            <div>
+                              <div className="audit-meta"><code>ATTEMPT_{attempt.attempt_number}</code><span>{formatDateTime(attempt.created_at)}</span></div>
+                              <strong>{formatLooseStatus(attempt.status)}</strong>
+                              <span>{attempt.error_message ?? "Pending backend connector execution."}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
               <h3>AI output</h3>
               <pre className="payload">{JSON.stringify(persistedCase.ai_output ?? { status: "pending_step_5" }, null, 2)}</pre>
               <h3>Audit trail</h3>
