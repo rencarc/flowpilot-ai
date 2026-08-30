@@ -172,14 +172,16 @@ export function ReviewCaseList({ items }: { items: CaseRecord[] }) {
               <input type="hidden" name="decision" value="approve" />
               <button className="small-btn" type="submit">Approve</button>
             </form>
-            <form action={reviewCaseAction}>
+            <form className="inline-review-form" action={reviewCaseAction}>
               <input type="hidden" name="case_id" value={item.id} />
               <input type="hidden" name="decision" value="request_info" />
+              <input className="mini-input" name="note" placeholder="Missing info" />
               <button className="small-btn" type="submit">Need info</button>
             </form>
-            <form action={reviewCaseAction}>
+            <form className="inline-review-form" action={reviewCaseAction}>
               <input type="hidden" name="case_id" value={item.id} />
               <input type="hidden" name="decision" value="reject" />
+              <input className="mini-input" name="note" placeholder="Reject reason" />
               <button className="small-btn danger" type="submit">Reject</button>
             </form>
           </div>

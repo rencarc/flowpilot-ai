@@ -42,6 +42,25 @@ function citationKindLabel(citation: Record<string, unknown>) {
   return citation.source_kind === "governance_standard" ? "Governance standard" : "Workspace policy";
 }
 
+function latestReviewNote(output: Record<string, unknown> | null) {
+  const history = output?.review_history;
+
+  if (!Array.isArray(history)) {
+    return null;
+  }
+
+  const latest = history.filter((item): item is Record<string, unknown> => item !== null && typeof item === "object").at(-1);
+
+  if (!latest) {
+    return null;
+  }
+
+  return {
+    decision: typeof latest.decision === "string" ? latest.decision : "review",
+    note: typeof latest.note === "string" && latest.note ? latest.note : null
+  };
+}
+
 export default async function CaseDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const { error } = await searchParams;
@@ -50,6 +69,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const { profile } = await getCurrentUserContext();
   const canAnalyze = profile?.role === "reviewer" || profile?.role === "admin";
   const policyCitations = persistedCase ? policyCitationsFrom(persistedCase.ai_output) : [];
+  const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
 
   if (persistedCase) {
     return (
@@ -116,26 +136,37 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
             <div className="pill-list">
               {persistedCase.missing_information.length > 0 ? persistedCase.missing_information.map((info) => <Tag tone="review" key={info}>{info}</Tag>) : <Tag tone="approved">None recorded</Tag>}
             </div>
+            {reviewNote ? (
+              <>
+                <h3>Latest review note</h3>
+                <div className="quote-box">
+                  <strong>{reviewNote.decision.replace("_", " ")}</strong>
+                  <p>{reviewNote.note ?? "No note was provided."}</p>
+                </div>
+              </>
+            ) : null}
           </Panel>
           {canAnalyze ? (
             <Panel title="Handoff control" tag={<Tag tone={persistedCase.human_review_required ? "review" : "approved"}>{persistedCase.human_review_required ? "Review required" : "No review required"}</Tag>}>
               <h3>Current status</h3>
               <p className="muted">{formatCaseStatus(persistedCase.status)}</p>
               <h3>Review decision</h3>
-              <div className="review-actions split-actions">
-                <form action={reviewCaseAction}>
+              <div className="review-actions">
+                <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="approve" />
                   <button className="primary-btn" type="submit">Approve</button>
                 </form>
-                <form action={reviewCaseAction}>
+                <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="request_info" />
+                  <input className="input" name="note" placeholder="What information is missing?" />
                   <button className="secondary-btn" type="submit">Request info</button>
                 </form>
-                <form action={reviewCaseAction}>
+                <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="reject" />
+                  <input className="input" name="note" placeholder="Reason for rejection" />
                   <button className="danger-btn" type="submit">Reject</button>
                 </form>
               </div>
@@ -151,6 +182,15 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                 <Kv label="Next action" value={nextActionFor(persistedCase.status, persistedCase.missing_information.length)} />
                 <Kv label="Review" value={persistedCase.human_review_required ? "Required" : "Not required"} />
               </div>
+              {reviewNote ? (
+                <>
+                  <h3>Latest review note</h3>
+                  <div className="quote-box">
+                    <strong>{reviewNote.decision.replace("_", " ")}</strong>
+                    <p>{reviewNote.note ?? "No note was provided."}</p>
+                  </div>
+                </>
+              ) : null}
               <h3>Visible timeline</h3>
               <PersistedTimeline events={auditLogs} />
             </Panel>
