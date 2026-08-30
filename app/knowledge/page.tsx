@@ -93,8 +93,8 @@ function sourceLabel(policy: PolicyView) {
   return policy.sourceUrl ? "Attached source" : "Manual source";
 }
 
-export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ error?: string; policy?: string; show?: string }> }) {
-  const { error, policy: selectedId, show } = await searchParams;
+export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ error?: string; policy?: string }> }) {
+  const { error, policy: selectedId } = await searchParams;
   const { profile } = await getCurrentUserContext();
   const policies = await getVisiblePolicies();
   const chunks = await getVisiblePolicyChunks();
@@ -102,11 +102,8 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
   const canReadPolicyLibrary = profile?.role === "reviewer" || profile?.role === "admin";
   const message = errorText(error);
   const latestPolicy = policies[0] ? workspacePolicyView(policies[0], chunks) : null;
-  const workspaceViews = policies.map((policy) => workspacePolicyView(policy, chunks));
   const starterViews = starterPolicies.map((_, index) => starterPolicyView(index));
-  const libraryMode = show === "workspace" ? "workspace" : "starter";
-  const displayedPolicies = libraryMode === "workspace" ? workspaceViews : starterViews;
-  const selectedPolicy = [...workspaceViews, ...starterViews].find((policy) => policy.id === selectedId) ?? latestPolicy ?? starterViews[0];
+  const selectedPolicy = starterViews.find((policy) => policy.id === selectedId) ?? starterViews[0];
 
   return (
     <AppShell>
@@ -143,7 +140,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
               title="Latest policy"
               tag={
                 <div className="split-actions">
-                  {policies.length > 0 ? <Link className="small-btn" href="/knowledge?show=workspace">View all</Link> : null}
+                  {policies.length > 0 ? <Link className="small-btn" href="/knowledge/company">View all</Link> : null}
                   <Tag tone={latestPolicy ? "approved" : "pending"}>{latestPolicy ? "Workspace" : "None yet"}</Tag>
                 </div>
               }
@@ -160,22 +157,13 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             </Panel>
           </div>
           <div className="policy-library-layout">
-            <Panel
-              title={libraryMode === "workspace" ? "Company policies" : "Starter policies"}
-              tag={
-                <div className="split-actions">
-                  <Link className={`small-btn${libraryMode === "starter" ? " active" : ""}`} href="/knowledge">Starter</Link>
-                  <Link className={`small-btn${libraryMode === "workspace" ? " active" : ""}`} href="/knowledge?show=workspace">Company</Link>
-                </div>
-              }
-            >
-              {libraryMode === "workspace" && displayedPolicies.length === 0 ? <p className="muted">No company policies have been added yet.</p> : null}
+            <Panel title="Starter policies" tag={<Tag tone="pending">{starterViews.length} templates</Tag>}>
               <div className="policy-nav-list">
-                {displayedPolicies.map((policy) => (
-                  <Link className={`policy-nav-item${selectedPolicy.id === policy.id ? " active" : ""}`} href={`/knowledge?policy=${policy.id}${libraryMode === "workspace" ? "&show=workspace" : ""}`} key={policy.id}>
+                {starterViews.map((policy) => (
+                  <Link className={`policy-nav-item${selectedPolicy.id === policy.id ? " active" : ""}`} href={`/knowledge?policy=${policy.id}`} key={policy.id}>
                     <strong>{policy.title}</strong>
                     <span>{policy.description}</span>
-                    <small>{sourceLabel(policy)} / {policy.chunks.length} {policy.origin === "workspace" ? "chunks" : "sections"}</small>
+                    <small>{sourceLabel(policy)} / {policy.chunks.length} sections</small>
                   </Link>
                 ))}
               </div>
