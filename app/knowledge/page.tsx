@@ -1,6 +1,7 @@
-import { createPolicyAction } from "@/app/actions";
+import { createPolicyAction, seedStarterPoliciesAction } from "@/app/actions";
 import { AppShell, PageHeader, Panel, Tag } from "@/components/ui";
 import { getCurrentUserContext } from "@/lib/cases";
+import { starterPolicies } from "@/lib/policy-starter-pack";
 import { getVisiblePolicies, getVisiblePolicyChunks } from "@/lib/policies";
 
 function errorText(error?: string) {
@@ -38,21 +39,27 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
       <div className="knowledge-layout">
         <Panel title="Add policy" tag={<Tag tone={canManagePolicies ? "approved" : "review"}>{canManagePolicies ? "Admin" : "Read only"}</Tag>}>
           {canManagePolicies ? (
-            <form className="auth-form" action={createPolicyAction}>
-              <label><span>Title</span><input className="input" name="title" defaultValue="Privileged access approval policy" required /></label>
-              <label><span>Description</span><input className="input" name="description" defaultValue="Controls temporary admin access and approval evidence." /></label>
-              <label><span>Source URL</span><input className="input" name="source_url" placeholder="https://company.example/policies/access" /></label>
-              <label>
-                <span>Policy content</span>
-                <textarea
-                  className="textarea"
-                  name="content"
-                  defaultValue={"Temporary admin access to payroll, finance, HR, production, or identity systems requires manager approval, least-privilege scope, a time limit, and review by an authorized admin before any workflow handoff.\n\nRequests missing approver, business justification, target system, access duration, or rollback plan must enter needs_info or human review."}
-                  required
-                />
-              </label>
-              <button className="primary-btn" type="submit">Add policy source</button>
-            </form>
+            <div className="stack">
+              <form action={seedStarterPoliciesAction}>
+                <button className="primary-btn full-width" type="submit">Seed starter pack</button>
+              </form>
+              <div className="quote-box"><strong>Starter pack</strong><br />{starterPolicies.length} internal policy documents covering AI Act, GDPR, security, IAM, HR/payroll, handoff, vendor risk, and legal review.</div>
+              <form className="auth-form" action={createPolicyAction}>
+                <label><span>Title</span><input className="input" name="title" defaultValue="Privileged access approval policy" required /></label>
+                <label><span>Description</span><input className="input" name="description" defaultValue="Controls temporary admin access and approval evidence." /></label>
+                <label><span>Source URL</span><input className="input" name="source_url" placeholder="https://company.example/policies/access" /></label>
+                <label>
+                  <span>Policy content</span>
+                  <textarea
+                    className="textarea"
+                    name="content"
+                    defaultValue={"Temporary admin access to payroll, finance, HR, production, or identity systems requires manager approval, least-privilege scope, a time limit, and review by an authorized admin before any workflow handoff.\n\nRequests missing approver, business justification, target system, access duration, or rollback plan must enter needs_info or human review."}
+                    required
+                  />
+                </label>
+                <button className="secondary-btn full-width" type="submit">Add custom policy</button>
+              </form>
+            </div>
           ) : (
             <p className="muted">Policy management is limited to admins. Requesters can still benefit from policy-grounded status updates on their cases.</p>
           )}
