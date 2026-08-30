@@ -16,6 +16,14 @@ function errorText(error?: string) {
     return "Could not create connector.";
   }
 
+  if (error === "invalid_connector") {
+    return "Connector type is invalid.";
+  }
+
+  if (error === "missing_connector_url") {
+    return "Webhook connectors require an endpoint URL.";
+  }
+
   return null;
 }
 
@@ -54,10 +62,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {canManageConnectors ? (
             <>
               <details className="policy-maintenance">
-                <summary>Add mock connector</summary>
+                <summary>Add connector</summary>
                 <form className="auth-form" action={createConnectorAction}>
                   <label><span>Name</span><input className="input" name="name" defaultValue="Mock internal ops API" required /></label>
+                  <label>
+                    <span>Type</span>
+                    <select className="input" name="type" defaultValue="mock_internal_api">
+                      <option value="mock_internal_api">Mock internal API</option>
+                      <option value="custom_webhook">Custom webhook</option>
+                    </select>
+                  </label>
                   <label><span>Endpoint URL</span><input className="input" name="endpoint_url" placeholder="https://example.com/webhook/flowpilot" /></label>
+                  <p className="muted">Webhook execution runs only on the backend and sends the idempotency key as a request header. Secret-based auth is intentionally not exposed in this UI yet.</p>
                   <button className="primary-btn full-width" type="submit">Create connector</button>
                 </form>
               </details>
