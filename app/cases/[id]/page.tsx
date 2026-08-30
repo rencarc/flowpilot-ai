@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyzeCaseAction } from "@/app/actions";
+import { analyzeCaseAction, checkPolicyEvidenceAction } from "@/app/actions";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
@@ -28,6 +28,16 @@ function nextActionFor(status: string, missingCount: number) {
   return "Waiting for reviewer/admin analysis.";
 }
 
+function policyCitationsFrom(output: Record<string, unknown> | null) {
+  const citations = output?.policy_citations;
+
+  if (!Array.isArray(citations)) {
+    return [];
+  }
+
+  return citations.filter((citation): citation is Record<string, unknown> => citation !== null && typeof citation === "object");
+}
+
 export default async function CaseDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const { error } = await searchParams;
@@ -35,12 +45,28 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const auditLogs = persistedCase ? await getAuditLogsForCase(persistedCase.id) : [];
   const { profile } = await getCurrentUserContext();
   const canAnalyze = profile?.role === "reviewer" || profile?.role === "admin";
+  const policyCitations = persistedCase ? policyCitationsFrom(persistedCase.ai_output) : [];
 
   if (persistedCase) {
     return (
       <AppShell>
-        <PageHeader title={persistedCase.title} subtitle="Persisted case record loaded through Supabase RLS." action={<div className="split-actions">{canAnalyze ? <form action={analyzeCaseAction}><input type="hidden" name="case_id" value={persistedCase.id} /><button className="primary-btn" type="submit">{persistedCase.status === "ai_output_invalid" ? "Retry AI analysis" : "Analyze with AI"}</button></form> : null}<Link className="secondary-btn" href="/cases">Back to cases</Link></div>} />
+        <PageHeader
+          title={persistedCase.title}
+          subtitle="Persisted case record loaded through Supabase RLS."
+          action={
+            <div className="split-actions">
+              {canAnalyze ? (
+                <>
+                  <form action={checkPolicyEvidenceAction}><input type="hidden" name="case_id" value={persistedCase.id} /><button className="secondary-btn" type="submit">Check policy evidence</button></form>
+                  <form action={analyzeCaseAction}><input type="hidden" name="case_id" value={persistedCase.id} /><button className="primary-btn" type="submit">{persistedCase.status === "ai_output_invalid" ? "Retry AI analysis" : "Analyze with AI"}</button></form>
+                </>
+              ) : null}
+              <Link className="secondary-btn" href="/cases">Back to cases</Link>
+            </div>
+          }
+        />
         {error === "analysis_forbidden" ? <p className="auth-message error">AI analysis is restricted to reviewer/admin roles.</p> : null}
+        {error === "policy_check_failed" ? <p className="auth-message error">Policy evidence check failed. Review the policy source and Supabase logs.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -61,7 +87,23 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
               {Array.isArray(persistedCase.ai_output?.matched_rules) ? persistedCase.ai_output.matched_rules.map((rule) => <Tag key={String(rule)}>{String(rule)}</Tag>) : <Tag>pending_step_5</Tag>}
             </div>
             <h3>Policy evidence</h3>
-            <div className="pill-list"><Tag>{persistedCase.policy_evidence_status}</Tag></div>
+            <div className="pill-list"><Tag tone={persistedCase.policy_evidence_status === "found" ? "approved" : "review"}>{persistedCase.policy_evidence_status}</Tag></div>
+            {policyCitations.length > 0 ? (
+              <div className="action-list compact-list">
+                {policyCitations.map((citation) => (
+                  <article className="policy-row" key={String(citation.chunk_id)}>
+                    <div>
+                      <h3>{String(citation.policy_title ?? "Policy citation")}</h3>
+                      <p>{String(citation.excerpt ?? "")}</p>
+                      {typeof citation.source_url === "string" && citation.source_url ? <p><strong>Source:</strong> {citation.source_url}</p> : null}
+                    </div>
+                    <div className="tags"><Tag tone="approved">score {String(citation.score ?? 0)}</Tag></div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No policy citation has been attached yet.</p>
+            )}
             <h3>Missing information</h3>
             <div className="pill-list">
               {persistedCase.missing_information.length > 0 ? persistedCase.missing_information.map((info) => <Tag tone="review" key={info}>{info}</Tag>) : <Tag tone="approved">None recorded</Tag>}

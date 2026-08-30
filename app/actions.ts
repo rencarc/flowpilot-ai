@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
+import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CaseRecord } from "@/lib/supabase/types";
 
@@ -105,6 +106,7 @@ export async function analyzeCaseAction(formData: FormData) {
 
   const startedAt = Date.now();
   const admin = createAdminClient();
+  const policyCitations = await retrievePolicyCitations(visibleCase);
 
   try {
     const analysis = await analyzeCaseWithOpenAI({
@@ -115,18 +117,25 @@ export async function analyzeCaseAction(formData: FormData) {
     });
 
     const latencyMs = Date.now() - startedAt;
+    const policyEvidenceStatus = policyCitations.length > 0 ? "found" : "missing";
+    const status = policyEvidenceStatus === "missing" ? "policy_evidence_missing" : analysis.status;
+    const aiOutput = {
+      ...analysis,
+      status,
+      policy_citations: policyCitations
+    };
     const { error: updateError } = await admin
       .from("cases")
       .update({
         summary: analysis.summary,
         category: analysis.case_type,
         risk_level: analysis.risk_level,
-        status: analysis.status,
+        status,
         confidence_score: analysis.confidence_score,
         missing_information: analysis.missing_information,
-        ai_output: analysis,
-        human_review_required: analysis.human_review_required,
-        policy_evidence_status: analysis.matched_rules.length > 0 ? "found" : "missing"
+        ai_output: aiOutput,
+        human_review_required: analysis.human_review_required || policyEvidenceStatus === "missing",
+        policy_evidence_status: policyEvidenceStatus
       })
       .eq("id", visibleCase.id)
       .eq("workspace_id", profile.workspace_id);
@@ -140,13 +149,17 @@ export async function analyzeCaseAction(formData: FormData) {
       actor_id: user.id,
       actor_type: "ai",
       case_id: visibleCase.id,
-      event_type: "AI_OUTPUT_CREATED",
-      event_summary: `AI classified case as ${analysis.risk_level} risk with status ${analysis.status}.`,
+      event_type: policyEvidenceStatus === "found" ? "POLICY_EVIDENCE_FOUND" : "POLICY_EVIDENCE_MISSING",
+      event_summary:
+        policyEvidenceStatus === "found"
+          ? `AI classified case as ${analysis.risk_level} risk with ${policyCitations.length} policy citation(s).`
+          : "AI analysis completed, but no matching policy evidence was found.",
       metadata: {
         model: "gpt-4.1-mini",
         latency_ms: latencyMs,
         confidence_score: analysis.confidence_score,
-        matched_rules: analysis.matched_rules
+        matched_rules: analysis.matched_rules,
+        policy_citations: policyCitations
       }
     });
 
@@ -180,4 +193,153 @@ export async function analyzeCaseAction(formData: FormData) {
   revalidatePath(`/cases/${visibleCase.id}`);
   revalidatePath("/audit");
   redirect(`/cases/${visibleCase.id}`);
+}
+
+export async function checkPolicyEvidenceAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (!["reviewer", "admin"].includes(profile.role)) {
+    redirect(`/cases/${caseId}?error=analysis_forbidden`);
+  }
+
+  const { data: visibleCase, error: readError } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("id", caseId)
+    .maybeSingle<CaseRecord>();
+
+  if (readError || !visibleCase) {
+    console.error("Unauthorized or missing case for policy evidence check", readError);
+    redirect("/cases?error=case_not_visible");
+  }
+
+  const policyCitations = await retrievePolicyCitations(visibleCase);
+  const policyEvidenceStatus = policyCitations.length > 0 ? "found" : "missing";
+  const nextStatus = policyEvidenceStatus === "found" ? "in_review" : "policy_evidence_missing";
+  const admin = createAdminClient();
+  const aiOutput = {
+    ...(visibleCase.ai_output ?? {}),
+    policy_citations: policyCitations,
+    retrieval_mode: "keyword_dev"
+  };
+
+  const { error: updateError } = await admin
+    .from("cases")
+    .update({
+      status: nextStatus,
+      ai_output: aiOutput,
+      human_review_required: true,
+      policy_evidence_status: policyEvidenceStatus
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to update policy evidence", updateError);
+    redirect(`/cases/${visibleCase.id}?error=policy_check_failed`);
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "system",
+    case_id: visibleCase.id,
+    event_type: policyEvidenceStatus === "found" ? "POLICY_EVIDENCE_FOUND" : "POLICY_EVIDENCE_MISSING",
+    event_summary:
+      policyEvidenceStatus === "found"
+        ? `Policy retrieval found ${policyCitations.length} matching citation(s).`
+        : "Policy retrieval found no matching evidence; case remains blocked for review.",
+    metadata: {
+      retrieval_mode: "keyword_dev",
+      policy_citations: policyCitations
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/audit");
+  redirect(`/cases/${visibleCase.id}`);
+}
+
+export async function createPolicyAction(formData: FormData) {
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/knowledge?error=policy_forbidden");
+  }
+
+  const title = requiredString(formData, "title");
+  const description = requiredString(formData, "description");
+  const content = requiredString(formData, "content");
+  const sourceUrl = requiredString(formData, "source_url");
+
+  if (!title || !content) {
+    redirect("/knowledge?error=missing_policy");
+  }
+
+  const { data: policy, error: policyError } = await supabase
+    .from("policies")
+    .insert({
+      workspace_id: profile.workspace_id,
+      title,
+      description: description || null,
+      source_type: sourceUrl ? "url" : "manual",
+      source_url: sourceUrl || null,
+      created_by: user.id
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (policyError || !policy) {
+    console.error("Failed to create policy", policyError);
+    redirect("/knowledge?error=create_failed");
+  }
+
+  const chunks = splitPolicyContent(content);
+
+  if (chunks.length > 0) {
+    const { error: chunkError } = await supabase.from("policy_chunks").insert(
+      chunks.map((chunk, index) => ({
+        policy_id: policy.id,
+        workspace_id: profile.workspace_id,
+        chunk_index: index,
+        content: chunk,
+        metadata: {
+          retrieval_mode: "keyword_dev",
+          embedding_status: "pending_openai_credits"
+        }
+      }))
+    );
+
+    if (chunkError) {
+      console.error("Failed to create policy chunks", chunkError);
+      redirect("/knowledge?error=chunk_failed");
+    }
+  }
+
+  await supabase.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: "POLICY_CREATED",
+    event_summary: `Admin added policy source: ${title}.`,
+    metadata: {
+      chunks: chunks.length,
+      retrieval_mode: "keyword_dev"
+    }
+  });
+
+  revalidatePath("/knowledge");
+  revalidatePath("/audit");
+  redirect("/knowledge");
 }
