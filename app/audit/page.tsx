@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext, getVisibleAuditLogs } from "@/lib/cases";
-import { getLangfuseConfigStatus, getObservabilitySummary, getVisibleAiTraces } from "@/lib/observability";
+import { getLangfuseConfigStatus, getObservabilitySummary, getRagEvaluationCases, getVisibleAiTraces } from "@/lib/observability";
 
 export default async function AuditPage() {
   const { profile } = await getCurrentUserContext();
   const auditEvents = await getVisibleAuditLogs(30);
   const summary = await getObservabilitySummary(auditEvents);
   const aiTraces = await getVisibleAiTraces(12);
+  const ragCases = await getRagEvaluationCases(8);
   const canSeeAiTraces = profile?.role === "admin";
   const langfuse = getLangfuseConfigStatus();
 
@@ -58,6 +60,24 @@ export default async function AuditPage() {
         </Panel>
       </div>
       <section className="panel">
+        <div className="panel-header"><h2>Retrieval evaluation samples</h2><Tag>{ragCases.length} cases</Tag></div>
+        <div className="table audit-table">
+          <div className="table-row table-head"><span>Case</span><span>Evidence</span><span>Citations</span><span>Matched policies</span><span>Updated</span><span>Detail</span></div>
+          {ragCases.length === 0 ? <div className="panel-body"><p className="muted">No cases available for retrieval evaluation yet.</p></div> : null}
+          {ragCases.map((item) => (
+            <Link className="table-row" href={`/cases/${item.id}`} key={item.id}>
+              <span><strong>{item.title}</strong><small>{item.status}</small></span>
+              <span><Tag tone={item.policyEvidenceStatus === "found" ? "approved" : "pending"}>{item.policyEvidenceStatus}</Tag></span>
+              <span>{item.citationCount}</span>
+              <span>{item.citationTitles.length > 0 ? item.citationTitles.slice(0, 2).join(", ") : "No matched policy citations"}</span>
+              <span>{formatDateTime(item.updatedAt)}</span>
+              <span className="detail-link">Open case</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+      <section className="panel">
+        <div className="panel-header"><h2>Event stream</h2><Tag>{auditEvents.length} events</Tag></div>
         <div className="table audit-table">
           <div className="table-row table-head"><span>Event</span><span>Actor</span><span>Case</span><span>Type</span><span>Time</span><span>Trace</span></div>
           {auditEvents.length === 0 ? <div className="panel-body"><p className="muted">No persisted audit logs yet.</p></div> : null}

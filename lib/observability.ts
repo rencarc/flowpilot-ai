@@ -46,6 +46,43 @@ function citationCount(item: CaseRecord) {
   return Array.isArray(citations) ? citations.length : 0;
 }
 
+function citationTitles(item: CaseRecord) {
+  const citations = item.ai_output?.policy_citations;
+
+  if (!Array.isArray(citations)) {
+    return [];
+  }
+
+  return citations
+    .map((citation) => {
+      if (!citation || typeof citation !== "object") {
+        return null;
+      }
+
+      const data = citation as Record<string, unknown>;
+      return typeof data.policy_title === "string" ? data.policy_title : null;
+    })
+    .filter(Boolean) as string[];
+}
+
+export const getRagEvaluationCases = cache(async (limit = 8) => {
+  const cases = await getVisibleCases();
+
+  return cases.slice(0, limit).map((item) => {
+    const titles = citationTitles(item);
+
+    return {
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      policyEvidenceStatus: item.policy_evidence_status,
+      citationCount: titles.length,
+      citationTitles: titles,
+      updatedAt: item.updated_at
+    };
+  });
+});
+
 export async function getObservabilitySummary(auditEvents: AuditLogRecord[]) {
   const cases = await getVisibleCases();
   const totalCases = cases.length;
