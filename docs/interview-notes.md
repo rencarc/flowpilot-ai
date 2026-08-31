@@ -78,7 +78,7 @@ Policy knowledge has two layers:
 - Governance standards: baseline policy frameworks such as EU AI Act, GDPR, security, IAM, HR/payroll, handoff safety, vendor risk, and legal review.
 - Company policy supplements: workspace-specific policies added by admins for real internal rules.
 
-Current local mode uses keyword-based retrieval for development without OpenAI credits. The next upgrade is pgvector embeddings and semantic similarity search.
+Current retrieval uses pgvector semantic similarity search when embeddings exist, with keyword retrieval as a development fallback.
 
 Interview wording:
 
@@ -133,15 +133,15 @@ The project records:
 - workflow execution attempts
 - RAG evaluation samples with citation coverage
 
-Langfuse configuration is represented in environment status, but external SDK trace export is optional and can be added after dependencies and credentials are available.
+AI analysis traces are exported to Langfuse from the backend when Langfuse environment variables are configured. If Langfuse is unavailable, the app keeps the local Supabase audit trail and does not block the user flow.
 
 ## Current Limitations
 
 - Real OpenAI analysis requires available API credits.
-- Current retrieval mode is keyword-based; pgvector embedding search is the next upgrade.
+- Semantic retrieval requires generated embeddings; otherwise the app falls back to keyword retrieval.
 - Connector secret values are not resolved from a vault yet; only secret references are stored.
-- Langfuse is prepared at the configuration level but not exporting traces through SDK yet.
-- End-to-end hosted deployment and CI are still pending.
+- External Langfuse trace export is environment-dependent and does not block the user flow if Langfuse is unavailable.
+- End-to-end hosted demo QA should be repeated after each production deployment.
 
 ## Demo Path
 

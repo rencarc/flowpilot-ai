@@ -25,11 +25,11 @@ raw request
 - Supabase RLS for requester, reviewer, and admin boundaries
 - Persisted cases, policy documents, policy chunks, audit logs, AI traces, workflow templates, workflow runs, and execution attempts
 - Server-side OpenAI structured output path with application validation
-- Local policy retrieval with source citations
+- Semantic pgvector policy retrieval with source citations and keyword fallback
 - Human review decisions for approve, reject, and request-more-info flows
 - Governed workflow template matching and AI proposal conversion
 - Backend-only connector execution with idempotency, retry, failure tracking, cancellation, and secret references
-- Local observability dashboard for audit logs, AI traces, and RAG evaluation samples
+- Observability dashboard for audit logs, AI traces, RAG evaluation samples, and optional Langfuse trace export
 
 ## Role Model
 
@@ -108,6 +108,7 @@ Then apply later migrations in order, including:
 
 ```text
 supabase/migrations/202608300001_policy_rls_refinement.sql
+supabase/migrations/202608310001_policy_vector_search.sql
 ```
 
 Do not commit `.env.local`. The service role key is server-only and must never be exposed to browser code.

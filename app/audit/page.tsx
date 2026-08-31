@@ -25,17 +25,17 @@ export default async function AuditPage() {
       <div className="grid-2">
         <Panel title="RAG evaluation" tag={<Tag tone={summary.citationCoverage > 0 ? "approved" : "pending"}>local</Tag>}>
           <div className="kv">
-            <Kv label="Current retrieval mode" value="keyword_dev" />
+            <Kv label="Current retrieval mode" value="semantic pgvector with keyword fallback" />
             <Kv label="Cases with citations" value={`${summary.casesWithCitations} / ${summary.totalCases}`} />
             <Kv label="Review decisions observed" value={summary.reviewEvents} />
-            <Kv label="Next eval upgrade" value="Compare pgvector citations after OpenAI credits are available" />
+            <Kv label="Next eval upgrade" value="Add reviewer scoring for citation relevance" />
           </div>
         </Panel>
         <Panel title="External tracing" tag={<Tag tone={langfuse.enabled ? "approved" : "pending"}>{langfuse.status}</Tag>}>
           <div className="kv">
             <Kv label="Provider" value="Langfuse" />
             <Kv label="Host" value={langfuse.host} />
-            <Kv label="Mode" value={langfuse.enabled ? "Ready for SDK trace export" : "Local audit only"} />
+            <Kv label="Mode" value={langfuse.enabled ? "Exporting AI analysis traces" : "Local audit only"} />
             <Kv label="Missing env" value={langfuse.missing.length > 0 ? langfuse.missing.join(", ") : "None"} />
           </div>
         </Panel>
