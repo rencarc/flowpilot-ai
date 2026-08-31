@@ -6,6 +6,7 @@ import { createHandoffPayloadStep, runGovernedAgentTools } from "@/lib/agent-too
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
 import { createEmbedding } from "@/lib/embeddings";
+import { exportAiAnalysisTraceToLangfuse } from "@/lib/langfuse";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CaseRecord, ConnectorAuthType, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord, WorkflowTemplateRecord } from "@/lib/supabase/types";
@@ -47,6 +48,8 @@ function shouldMockFail(payload: Record<string, unknown>) {
 function aiModelName() {
   return process.env.OPENAI_MODEL || "gpt-4.1-mini";
 }
+
+const CASE_ANALYSIS_PROMPT_VERSION = "step_5_case_analysis_v1";
 
 function aiErrorCode(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -307,11 +310,21 @@ export async function analyzeCaseAction(formData: FormData) {
       workspace_id: profile.workspace_id,
       case_id: visibleCase.id,
       trace_id: traceId,
-      prompt_version: "step_5_case_analysis_v1",
+      prompt_version: CASE_ANALYSIS_PROMPT_VERSION,
       model,
       input_hash: visibleCase.id,
       output_valid: true,
       latency_ms: latencyMs
+    });
+
+    await exportAiAnalysisTraceToLangfuse({
+      traceId,
+      caseRecord: visibleCase,
+      model,
+      promptVersion: CASE_ANALYSIS_PROMPT_VERSION,
+      latencyMs,
+      outputValid: true,
+      aiOutput
     });
   } catch (error) {
     console.error("AI analysis failed", error);
@@ -324,7 +337,7 @@ export async function analyzeCaseAction(formData: FormData) {
       workspace_id: profile.workspace_id,
       case_id: visibleCase.id,
       trace_id: traceId,
-      prompt_version: "step_5_case_analysis_v1",
+      prompt_version: CASE_ANALYSIS_PROMPT_VERSION,
       model,
       input_hash: visibleCase.id,
       output_valid: false,
@@ -344,6 +357,17 @@ export async function analyzeCaseAction(formData: FormData) {
         error_code: errorCode,
         error: errorMessage
       }
+    });
+
+    await exportAiAnalysisTraceToLangfuse({
+      traceId,
+      caseRecord: visibleCase,
+      model,
+      promptVersion: CASE_ANALYSIS_PROMPT_VERSION,
+      latencyMs,
+      outputValid: false,
+      aiOutput: null,
+      errorMessage
     });
   }
 
