@@ -86,6 +86,26 @@ function latestRequesterUpdate(output: Record<string, unknown> | null) {
   return typeof latest.update === "string" && latest.update ? latest.update : null;
 }
 
+function aiErrorMessage(error?: string) {
+  if (error === "missing_openai_key") {
+    return "OpenAI API key is missing. Add OPENAI_API_KEY locally and in Vercel, then redeploy.";
+  }
+
+  if (error === "openai_billing_required") {
+    return "OpenAI billing credits are required for real AI analysis. Other workflow features still work.";
+  }
+
+  if (error === "openai_rate_limited") {
+    return "OpenAI rate limit reached. Wait briefly before retrying to avoid wasting attempts.";
+  }
+
+  if (error === "ai_output_invalid") {
+    return "AI analysis failed validation. Retry once after checking the audit trace.";
+  }
+
+  return null;
+}
+
 export default async function CaseDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const { id } = await params;
   const { error } = await searchParams;
@@ -126,6 +146,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
           }
         />
         {error === "analysis_forbidden" ? <p className="auth-message error">AI analysis is restricted to reviewer/admin roles.</p> : null}
+        {aiErrorMessage(error) ? <p className="auth-message error">{aiErrorMessage(error)}</p> : null}
         {error === "policy_check_failed" ? <p className="auth-message error">Policy evidence check failed. Review the policy source and Supabase logs.</p> : null}
         {error === "review_forbidden" ? <p className="auth-message error">Review decisions are restricted to reviewer/admin roles.</p> : null}
         {error === "review_failed" ? <p className="auth-message error">Review decision could not be saved. Check Supabase logs and try again.</p> : null}

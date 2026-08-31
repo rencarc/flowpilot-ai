@@ -42,6 +42,28 @@ function shouldMockFail(payload: Record<string, unknown>) {
   return payload.force_failure === true;
 }
 
+function aiModelName() {
+  return process.env.OPENAI_MODEL || "gpt-4.1-mini";
+}
+
+function aiErrorCode(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("Missing OPENAI_API_KEY")) {
+    return "missing_openai_key";
+  }
+
+  if (message.includes("insufficient_quota") || message.includes("billing") || message.includes("quota")) {
+    return "openai_billing_required";
+  }
+
+  if (message.includes("rate_limit")) {
+    return "openai_rate_limited";
+  }
+
+  return "ai_output_invalid";
+}
+
 async function executeConnector(run: WorkflowRunRecord, connector: Pick<ConnectorRecord, "type" | "endpoint_url" | "auth_type" | "secret_ref"> | null) {
   if (!connector || connector.type === "mock_internal_api") {
     const failed = shouldMockFail(run.payload);
@@ -199,8 +221,10 @@ export async function analyzeCaseAction(formData: FormData) {
 
   const startedAt = Date.now();
   const traceId = crypto.randomUUID();
+  const model = aiModelName();
   const admin = createAdminClient();
   const policyCitations = await retrievePolicyCitations(visibleCase);
+  let analysisErrorCode: string | null = null;
 
   try {
     const analysis = await analyzeCaseWithOpenAI({
@@ -250,7 +274,7 @@ export async function analyzeCaseAction(formData: FormData) {
           : "AI analysis completed, but no matching policy evidence was found.",
       metadata: {
         trace_id: traceId,
-        model: "gpt-4.1-mini",
+        model,
         latency_ms: latencyMs,
         confidence_score: analysis.confidence_score,
         matched_rules: analysis.matched_rules,
@@ -263,7 +287,7 @@ export async function analyzeCaseAction(formData: FormData) {
       case_id: visibleCase.id,
       trace_id: traceId,
       prompt_version: "step_5_case_analysis_v1",
-      model: "gpt-4.1-mini",
+      model,
       input_hash: visibleCase.id,
       output_valid: true,
       latency_ms: latencyMs
@@ -272,13 +296,15 @@ export async function analyzeCaseAction(formData: FormData) {
     console.error("AI analysis failed", error);
     const latencyMs = Date.now() - startedAt;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorCode = aiErrorCode(error);
+    analysisErrorCode = errorCode;
     await admin.from("cases").update({ status: "ai_output_invalid" }).eq("id", visibleCase.id).eq("workspace_id", profile.workspace_id);
     await admin.from("ai_traces").insert({
       workspace_id: profile.workspace_id,
       case_id: visibleCase.id,
       trace_id: traceId,
       prompt_version: "step_5_case_analysis_v1",
-      model: "gpt-4.1-mini",
+      model,
       input_hash: visibleCase.id,
       output_valid: false,
       latency_ms: latencyMs,
@@ -294,6 +320,7 @@ export async function analyzeCaseAction(formData: FormData) {
       metadata: {
         trace_id: traceId,
         latency_ms: latencyMs,
+        error_code: errorCode,
         error: errorMessage
       }
     });
@@ -303,7 +330,7 @@ export async function analyzeCaseAction(formData: FormData) {
   revalidatePath("/cases");
   revalidatePath(`/cases/${visibleCase.id}`);
   revalidatePath("/audit");
-  redirect(`/cases/${visibleCase.id}`);
+  redirect(`/cases/${visibleCase.id}${analysisErrorCode ? `?error=${analysisErrorCode}` : ""}`);
 }
 
 export async function checkPolicyEvidenceAction(formData: FormData) {

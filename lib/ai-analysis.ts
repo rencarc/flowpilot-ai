@@ -102,6 +102,7 @@ function extractOutputText(response: Record<string, unknown>) {
 
 export async function analyzeCaseWithOpenAI(input: { title: string; rawRequest: string; department: string | null; priority: string | null }) {
   const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
   if (!apiKey) {
     throw new Error("Missing OPENAI_API_KEY.");
@@ -114,7 +115,7 @@ export async function analyzeCaseWithOpenAI(input: { title: string; rawRequest: 
       Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model,
       input: [
         {
           role: "system",
@@ -135,6 +136,8 @@ export async function analyzeCaseWithOpenAI(input: { title: string; rawRequest: 
           })
         }
       ],
+      temperature: 0,
+      max_output_tokens: 700,
       text: {
         format: {
           type: "json_schema",
