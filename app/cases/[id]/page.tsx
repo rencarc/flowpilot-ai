@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { analyzeCaseAction, cancelWorkflowRunAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, executeWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, retryWorkflowRunAction, reviewCaseAction } from "@/app/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
 import { getCase, getTemplate } from "@/lib/mock-data";
@@ -137,8 +138,8 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
             <div className="split-actions">
               {canAnalyze ? (
                 <>
-                  <form action={checkPolicyEvidenceAction}><input type="hidden" name="case_id" value={persistedCase.id} /><button className="secondary-btn" type="submit">Check policy evidence</button></form>
-                  <form action={analyzeCaseAction}><input type="hidden" name="case_id" value={persistedCase.id} /><button className="primary-btn" type="submit">{persistedCase.status === "ai_output_invalid" ? "Retry AI analysis" : "Analyze with AI"}</button></form>
+                  <form action={checkPolicyEvidenceAction}><input type="hidden" name="case_id" value={persistedCase.id} /><SubmitButton className="secondary-btn" pendingText="Checking...">Check policy evidence</SubmitButton></form>
+                  <form action={analyzeCaseAction}><input type="hidden" name="case_id" value={persistedCase.id} /><SubmitButton className="primary-btn" pendingText="Analyzing...">{persistedCase.status === "ai_output_invalid" ? "Retry AI analysis" : "Analyze with AI"}</SubmitButton></form>
                 </>
               ) : null}
               <Link className="secondary-btn" href="/cases">Back to cases</Link>
@@ -233,19 +234,19 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                 <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="approve" />
-                  <button className="primary-btn" type="submit">Approve</button>
+                  <SubmitButton className="primary-btn" pendingText="Approving...">Approve</SubmitButton>
                 </form>
                 <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="request_info" />
                   <input className="input" name="note" placeholder="What information is missing?" />
-                  <button className="secondary-btn" type="submit">Request info</button>
+                  <SubmitButton className="secondary-btn" pendingText="Saving...">Request info</SubmitButton>
                 </form>
                 <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="reject" />
                   <input className="input" name="note" placeholder="Reason for rejection" />
-                  <button className="danger-btn" type="submit">Reject</button>
+                  <SubmitButton className="danger-btn" pendingText="Rejecting...">Reject</SubmitButton>
                 </form>
               </div>
               <h3>Workflow match</h3>
@@ -288,11 +289,11 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                       <option key={template.id} value={template.id}>{template.name}</option>
                     ))}
                   </select>
-                  <button className="secondary-btn" type="submit">Match workflow</button>
+                  <SubmitButton className="secondary-btn" pendingText="Matching...">Match workflow</SubmitButton>
                 </form>
                 <form action={createWorkflowProposalAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
-                  <button className="secondary-btn full-width" type="submit">Create no-match proposal</button>
+                  <SubmitButton className="secondary-btn full-width" pendingText="Creating...">Create no-match proposal</SubmitButton>
                 </form>
               </div>
               <h3>Workflow run</h3>
@@ -303,7 +304,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                     <option value="">No connector / mock queue only</option>
                     {connectors.map((connector) => <option key={connector.id} value={connector.id}>{connector.name}</option>)}
                   </select>
-                  <button className="primary-btn" type="submit">Queue workflow run</button>
+                  <SubmitButton className="primary-btn" pendingText="Queueing...">Queue workflow run</SubmitButton>
                 </form>
               ) : (
                 <p className="muted">A workflow run can be queued only after the case is approved and matched to an approved workflow.</p>
@@ -323,20 +324,20 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                         {["pending", "queued", "retrying"].includes(run.status) ? (
                           <form action={executeWorkflowRunAction}>
                             <input type="hidden" name="workflow_run_id" value={run.id} />
-                            <button className="primary-btn" type="submit">Execute mock run</button>
+                            <SubmitButton className="primary-btn" pendingText="Executing...">Execute mock run</SubmitButton>
                           </form>
                         ) : null}
                         {run.status === "failed" && run.retry_count < run.max_retries ? (
                           <form action={retryWorkflowRunAction}>
                             <input type="hidden" name="workflow_run_id" value={run.id} />
-                            <button className="secondary-btn" type="submit">Retry run</button>
+                            <SubmitButton className="secondary-btn" pendingText="Retrying...">Retry run</SubmitButton>
                           </form>
                         ) : null}
                         {["pending", "queued", "running", "failed", "retrying"].includes(run.status) ? (
                           <form className="inline-review-form" action={cancelWorkflowRunAction}>
                             <input type="hidden" name="workflow_run_id" value={run.id} />
                             <input className="mini-input" name="reason" placeholder="Cancel reason" />
-                            <button className="danger-btn" type="submit">Cancel run</button>
+                            <SubmitButton className="danger-btn" pendingText="Cancelling...">Cancel run</SubmitButton>
                           </form>
                         ) : null}
                       </div>
@@ -386,7 +387,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                   <form className="auth-form" action={provideCaseInfoAction}>
                     <input type="hidden" name="case_id" value={persistedCase.id} />
                     <textarea className="textarea compact-textarea" name="update" placeholder="Add the missing information requested by the reviewer." required />
-                    <button className="primary-btn full-width" type="submit">Submit update</button>
+                    <SubmitButton className="primary-btn full-width" pendingText="Submitting...">Submit update</SubmitButton>
                   </form>
                 </>
               ) : null}
