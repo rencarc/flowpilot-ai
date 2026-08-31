@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { runGovernedAgentTools } from "@/lib/agent-tools";
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
 import { createEmbedding } from "@/lib/embeddings";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CaseRecord, ConnectorAuthType, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
+import type { CaseRecord, ConnectorAuthType, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord, WorkflowTemplateRecord } from "@/lib/supabase/types";
 
 function requiredString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -224,10 +225,17 @@ export async function analyzeCaseAction(formData: FormData) {
   const traceId = crypto.randomUUID();
   const model = aiModelName();
   const admin = createAdminClient();
-  const policyCitations = await retrievePolicyCitations(visibleCase);
   let analysisErrorCode: string | null = null;
 
   try {
+    const { data: workflowTemplates } = await supabase
+      .from("workflow_templates")
+      .select("*")
+      .eq("workspace_id", profile.workspace_id)
+      .in("lifecycle_status", ["approved", "active"])
+      .returns<WorkflowTemplateRecord[]>();
+    const agentRun = await runGovernedAgentTools(visibleCase, workflowTemplates ?? []);
+    const policyCitations = agentRun.citations;
     const analysis = await analyzeCaseWithOpenAI({
       title: visibleCase.title,
       rawRequest: visibleCase.raw_request,
@@ -241,7 +249,9 @@ export async function analyzeCaseAction(formData: FormData) {
     const aiOutput = {
       ...analysis,
       status,
-      policy_citations: policyCitations
+      policy_citations: policyCitations,
+      agent_steps: agentRun.steps,
+      handoff_payload_preview: agentRun.handoffPayload
     };
     const { error: updateError } = await admin
       .from("cases")
@@ -279,7 +289,8 @@ export async function analyzeCaseAction(formData: FormData) {
         latency_ms: latencyMs,
         confidence_score: analysis.confidence_score,
         matched_rules: analysis.matched_rules,
-        policy_citations: policyCitations
+        policy_citations: policyCitations,
+        agent_steps: agentRun.steps
       }
     });
 

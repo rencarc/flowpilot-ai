@@ -41,6 +41,16 @@ function policyCitationsFrom(output: Record<string, unknown> | null) {
   return citations.filter((citation): citation is Record<string, unknown> => citation !== null && typeof citation === "object");
 }
 
+function agentStepsFrom(output: Record<string, unknown> | null) {
+  const steps = output?.agent_steps;
+
+  if (!Array.isArray(steps)) {
+    return [];
+  }
+
+  return steps.filter((step): step is Record<string, unknown> => step !== null && typeof step === "object");
+}
+
 function citationKindLabel(citation: Record<string, unknown>) {
   return citation.source_kind === "governance_standard" ? "Governance standard" : "Workspace policy";
 }
@@ -125,6 +135,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const recommendedWorkflow = persistedCase ? recommendWorkflowTemplate(persistedCase, approvedWorkflowTemplates) : null;
   const workflowProposal = workflowProposals.find((proposal) => proposal.id === persistedCase?.workflow_template_proposal_id);
   const policyCitations = persistedCase ? policyCitationsFrom(persistedCase.ai_output) : [];
+  const agentSteps = persistedCase ? agentStepsFrom(persistedCase.ai_output) : [];
   const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
   const requesterUpdate = persistedCase ? latestRequesterUpdate(persistedCase.ai_output) : null;
 
@@ -184,6 +195,22 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
             <div className="pill-list">
               {Array.isArray(persistedCase.ai_output?.matched_rules) ? persistedCase.ai_output.matched_rules.map((rule) => <Tag key={String(rule)}>{String(rule)}</Tag>) : <Tag>pending_step_5</Tag>}
             </div>
+            {agentSteps.length > 0 ? (
+              <>
+                <h3>Agent tool steps</h3>
+                <div className="action-list compact-list">
+                  {agentSteps.map((step) => (
+                    <article className="policy-row" key={String(step.tool)}>
+                      <div>
+                        <h3>{String(step.tool ?? "agent_tool")}</h3>
+                        <p>{String(step.summary ?? "Tool step completed.")}</p>
+                      </div>
+                      <div className="tags"><Tag tone={step.status === "completed" ? "approved" : "review"}>{String(step.status ?? "completed")}</Tag></div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : null}
             <h3>Policy evidence</h3>
             <div className="pill-list"><Tag tone={persistedCase.policy_evidence_status === "found" ? "approved" : "review"}>{persistedCase.policy_evidence_status}</Tag></div>
             {policyCitations.length > 0 ? (
