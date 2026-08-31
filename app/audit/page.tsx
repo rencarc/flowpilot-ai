@@ -61,7 +61,7 @@ export default async function AuditPage() {
       </div>
       <section className="panel">
         <div className="panel-header"><h2>Retrieval evaluation samples</h2><Tag>{ragCases.length} cases</Tag></div>
-        <div className="table audit-table">
+        <div className="table audit-table retrieval-table">
           <div className="table-row table-head"><span>Case</span><span>Evidence</span><span>Citations</span><span>Matched policies</span><span>Updated</span><span>Detail</span></div>
           {ragCases.length === 0 ? <div className="panel-body"><p className="muted">No cases available for retrieval evaluation yet.</p></div> : null}
           {ragCases.map((item) => (
@@ -78,7 +78,7 @@ export default async function AuditPage() {
       </section>
       <section className="panel">
         <div className="panel-header"><h2>Event stream</h2><Tag>{auditEvents.length} events</Tag></div>
-        <div className="table audit-table">
+        <div className="table audit-table event-table">
           <div className="table-row table-head"><span>Event</span><span>Actor</span><span>Case</span><span>Type</span><span>Time</span><span>Trace</span></div>
           {auditEvents.length === 0 ? <div className="panel-body"><p className="muted">No persisted audit logs yet.</p></div> : null}
           {auditEvents.map((event) => (
