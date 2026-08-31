@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { runGovernedAgentTools } from "@/lib/agent-tools";
+import { createHandoffPayloadStep, runGovernedAgentTools } from "@/lib/agent-tools";
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
 import { createEmbedding } from "@/lib/embeddings";
@@ -246,12 +246,21 @@ export async function analyzeCaseAction(formData: FormData) {
     const latencyMs = Date.now() - startedAt;
     const policyEvidenceStatus = policyCitations.length > 0 ? "found" : "missing";
     const status = policyEvidenceStatus === "missing" ? "policy_evidence_missing" : analysis.status;
+    const handoff = createHandoffPayloadStep({
+      item: visibleCase,
+      citations: policyCitations,
+      missingFields: analysis.missing_information,
+      template: agentRun.recommendedWorkflow,
+      status,
+      riskLevel: analysis.risk_level
+    });
+    const agentSteps = [...agentRun.steps, handoff.step];
     const aiOutput = {
       ...analysis,
       status,
       policy_citations: policyCitations,
-      agent_steps: agentRun.steps,
-      handoff_payload_preview: agentRun.handoffPayload
+      agent_steps: agentSteps,
+      handoff_payload_preview: handoff.payload
     };
     const { error: updateError } = await admin
       .from("cases")
@@ -290,7 +299,7 @@ export async function analyzeCaseAction(formData: FormData) {
         confidence_score: analysis.confidence_score,
         matched_rules: analysis.matched_rules,
         policy_citations: policyCitations,
-        agent_steps: agentRun.steps
+        agent_steps: agentSteps
       }
     });
 

@@ -1,5 +1,5 @@
 import { retrievePolicyCitations, type PolicyCitation } from "@/lib/policies";
-import type { CaseRecord, WorkflowTemplateRecord } from "@/lib/supabase/types";
+import type { CaseRecord, CaseStatus, RiskLevel, WorkflowTemplateRecord } from "@/lib/supabase/types";
 import { recommendWorkflowTemplate } from "@/lib/workflows";
 
 export interface AgentToolStep {
@@ -39,18 +39,47 @@ function missingAccessFields(item: CaseRecord) {
   });
 }
 
-function draftHandoffPayload(item: CaseRecord, citations: PolicyCitation[], template: WorkflowTemplateRecord | null) {
+function draftHandoffPayload(
+  item: CaseRecord,
+  citations: PolicyCitation[],
+  template: WorkflowTemplateRecord | null,
+  state?: { riskLevel?: RiskLevel | null; status?: CaseStatus }
+) {
   return {
     case_id: item.id,
     title: item.title,
     requester: item.requester,
     department: item.department,
-    risk_level: item.risk_level,
-    status: item.status,
+    risk_level: state?.riskLevel ?? item.risk_level,
+    status: state?.status ?? item.status,
     workflow_template_id: template?.id ?? null,
     workflow_template_name: template?.name ?? null,
     policy_citation_ids: citations.map((citation) => citation.chunk_id),
     requires_human_approval: true
+  };
+}
+
+export function createHandoffPayloadStep(input: {
+  item: CaseRecord;
+  citations: PolicyCitation[];
+  missingFields: string[];
+  template: WorkflowTemplateRecord | null;
+  status: CaseStatus;
+  riskLevel: RiskLevel | null;
+}) {
+  const payload = draftHandoffPayload(input.item, input.citations, input.template, {
+    riskLevel: input.riskLevel,
+    status: input.status
+  });
+
+  return {
+    step: {
+      tool: "draft_handoff_payload",
+      status: input.template && input.missingFields.length === 0 && input.citations.length > 0 ? "completed" : "blocked",
+      summary: "Drafted a backend-only handoff payload preview. Execution still requires approval.",
+      output: payload
+    } satisfies AgentToolStep,
+    payload
   };
 }
 
@@ -59,7 +88,6 @@ export async function runGovernedAgentTools(item: CaseRecord, templates: Workflo
   const citations = await retrievePolicyCitations(item);
   const missingFields = missingAccessFields(item);
   const recommended = recommendWorkflowTemplate(item, templates);
-  const payload = draftHandoffPayload(item, citations, recommended?.template ?? null);
 
   steps.push({
     tool: "retrieve_policy",
@@ -90,18 +118,11 @@ export async function runGovernedAgentTools(item: CaseRecord, templates: Workflo
     }
   });
 
-  steps.push({
-    tool: "draft_handoff_payload",
-    status: recommended && missingFields.length === 0 && citations.length > 0 ? "completed" : "blocked",
-    summary: "Drafted a backend-only handoff payload preview. Execution still requires approval.",
-    output: payload
-  });
-
   return {
     steps,
     citations,
     missingFields,
     recommendedWorkflow: recommended?.template ?? null,
-    handoffPayload: payload
+    handoffPayload: draftHandoffPayload(item, citations, recommended?.template ?? null)
   };
 }
