@@ -98,6 +98,18 @@ function sourceLabel(policy: PolicyView) {
   return policy.sourceUrl ? "Workspace source" : "Workspace policy";
 }
 
+function embeddingMessage(embedded?: string) {
+  if (embedded === undefined) {
+    return null;
+  }
+
+  if (embedded === "0") {
+    return "No workspace policy chunks need embeddings. Add a workspace policy first, or all existing chunks are already embedded.";
+  }
+
+  return `Generated semantic embeddings for ${embedded} policy chunk(s).`;
+}
+
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ embedded?: string; error?: string; policy?: string }> }) {
   const { embedded, error, policy: selectedId } = await searchParams;
   const { profile } = await getCurrentUserContext();
@@ -106,6 +118,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
   const canManagePolicies = profile?.role === "admin";
   const canReadPolicyLibrary = profile?.role === "reviewer" || profile?.role === "admin";
   const message = errorText(error);
+  const embeddedMessage = embeddingMessage(embedded);
   const workspacePolicies = policies.filter(isWorkspaceAuthoredPolicy);
   const latestPolicy = workspacePolicies[0] ? workspacePolicyView(workspacePolicies[0], chunks) : null;
   const standardViews = governanceStandards.map((_, index) => governanceStandardView(index));
@@ -115,7 +128,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
     <AppShell>
       <PageHeader title="Knowledge" subtitle="Governance standards define the baseline rules. Workspace policies add company-specific evidence for real cases." />
       {message ? <p className="auth-message error">{message}</p> : null}
-      {embedded ? <p className="auth-message success">Generated semantic embeddings for {embedded} policy chunk(s).</p> : null}
+      {embeddedMessage ? <p className="auth-message success">{embeddedMessage}</p> : null}
       {canReadPolicyLibrary ? (
         <>
           <div className="knowledge-top-grid">
@@ -143,7 +156,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                   <form action={generatePolicyEmbeddingsAction}>
                     <SubmitButton className="secondary-btn full-width" pendingText="Generating embeddings...">Generate semantic embeddings</SubmitButton>
                   </form>
-                  <p className="muted">This only embeds workspace policy chunks that do not already have vectors. Use it after adding or changing company policies.</p>
+                  <p className="muted">This embeds up to 20 workspace policy chunks that do not already have vectors. Use it after adding or changing company policies.</p>
                 </>
               ) : (
                 <p className="muted">Reviewers can inspect standards, workspace policies, and citations, but only admins can add or update workspace policies.</p>
