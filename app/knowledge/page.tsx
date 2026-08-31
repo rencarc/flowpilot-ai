@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createPolicyAction } from "@/app/actions";
+import { createPolicyAction, generatePolicyEmbeddingsAction } from "@/app/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { AppShell, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
 import { governanceStandards } from "@/lib/governance-standards";
@@ -32,6 +33,10 @@ function errorText(error?: string) {
 
   if (error === "chunk_failed") {
     return "Policy was created, but chunking failed.";
+  }
+
+  if (error === "embedding_failed") {
+    return "Policy embedding generation failed. Check OpenAI billing, environment variables, and Supabase vector search migration.";
   }
 
   return null;
@@ -93,8 +98,8 @@ function sourceLabel(policy: PolicyView) {
   return policy.sourceUrl ? "Workspace source" : "Workspace policy";
 }
 
-export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ error?: string; policy?: string }> }) {
-  const { error, policy: selectedId } = await searchParams;
+export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ embedded?: string; error?: string; policy?: string }> }) {
+  const { embedded, error, policy: selectedId } = await searchParams;
   const { profile } = await getCurrentUserContext();
   const policies = await getVisiblePolicies();
   const chunks = await getVisiblePolicyChunks();
@@ -110,29 +115,36 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
     <AppShell>
       <PageHeader title="Knowledge" subtitle="Governance standards define the baseline rules. Workspace policies add company-specific evidence for real cases." />
       {message ? <p className="auth-message error">{message}</p> : null}
+      {embedded ? <p className="auth-message success">Generated semantic embeddings for {embedded} policy chunk(s).</p> : null}
       {canReadPolicyLibrary ? (
         <>
           <div className="knowledge-top-grid">
             <Panel title="Add policy" tag={<Tag tone={canManagePolicies ? "approved" : "review"}>{canManagePolicies ? "Admin" : "Read only"}</Tag>}>
               {canManagePolicies ? (
-                <details className="policy-maintenance" open={policies.length === 0}>
-                  <summary>Add workspace policy</summary>
-                  <form className="auth-form" action={createPolicyAction}>
-                    <label><span>Title</span><input className="input" name="title" defaultValue="Privileged access approval policy" required /></label>
-                    <label><span>Description</span><input className="input" name="description" defaultValue="Controls temporary admin access and approval evidence." /></label>
-                    <label><span>Reference URL</span><input className="input" name="source_url" placeholder="https://company.example/policies/access" /></label>
-                    <label>
-                      <span>Policy text</span>
-                      <textarea
-                        className="textarea"
-                        name="content"
-                        defaultValue={"Temporary admin access to payroll, finance, HR, production, or identity systems requires manager approval, least-privilege scope, a time limit, and review by an authorized admin before any workflow handoff.\n\nRequests missing approver, business justification, target system, access duration, or rollback plan must enter needs_info or human review."}
-                        required
-                      />
-                    </label>
-                    <button className="primary-btn full-width" type="submit">Add policy</button>
+                <>
+                  <details className="policy-maintenance" open={policies.length === 0}>
+                    <summary>Add workspace policy</summary>
+                    <form className="auth-form" action={createPolicyAction}>
+                      <label><span>Title</span><input className="input" name="title" defaultValue="Privileged access approval policy" required /></label>
+                      <label><span>Description</span><input className="input" name="description" defaultValue="Controls temporary admin access and approval evidence." /></label>
+                      <label><span>Reference URL</span><input className="input" name="source_url" placeholder="https://company.example/policies/access" /></label>
+                      <label>
+                        <span>Policy text</span>
+                        <textarea
+                          className="textarea"
+                          name="content"
+                          defaultValue={"Temporary admin access to payroll, finance, HR, production, or identity systems requires manager approval, least-privilege scope, a time limit, and review by an authorized admin before any workflow handoff.\n\nRequests missing approver, business justification, target system, access duration, or rollback plan must enter needs_info or human review."}
+                          required
+                        />
+                      </label>
+                      <button className="primary-btn full-width" type="submit">Add policy</button>
+                    </form>
+                  </details>
+                  <form action={generatePolicyEmbeddingsAction}>
+                    <SubmitButton className="secondary-btn full-width" pendingText="Generating embeddings...">Generate semantic embeddings</SubmitButton>
                   </form>
-                </details>
+                  <p className="muted">This only embeds workspace policy chunks that do not already have vectors. Use it after adding or changing company policies.</p>
+                </>
               ) : (
                 <p className="muted">Reviewers can inspect standards, workspace policies, and citations, but only admins can add or update workspace policies.</p>
               )}

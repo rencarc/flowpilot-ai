@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getCurrentUserContext } from "@/lib/cases";
+import { createEmbedding } from "@/lib/embeddings";
 import { governanceStandards } from "@/lib/governance-standards";
 import type { CaseRecord } from "@/lib/supabase/types";
 
@@ -33,6 +34,20 @@ export interface PolicyCitation {
   excerpt: string;
   score: number;
   source_kind: "governance_standard" | "workspace_policy";
+  retrieval_mode?: "semantic_pgvector" | "keyword_dev";
+}
+
+interface SemanticPolicyChunk {
+  id: string;
+  policy_id: string;
+  workspace_id: string;
+  chunk_index: number;
+  content: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  similarity: number;
+  policy_title: string;
+  policy_source_url: string | null;
 }
 
 export function isWorkspaceAuthoredPolicy(policy: Pick<PolicyRecord, "source_type">) {
@@ -169,7 +184,44 @@ export const getVisiblePolicyChunks = cache(async () => {
   return data;
 });
 
-export async function retrievePolicyCitations(item: CaseRecord, limit = 3): Promise<PolicyCitation[]> {
+async function retrieveSemanticPolicyCitations(item: CaseRecord, limit: number): Promise<PolicyCitation[]> {
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile || profile.role === "requester") {
+    return [];
+  }
+
+  const queryText = `${item.title}\n${item.raw_request}\n${item.department ?? ""}\n${item.category ?? ""}`;
+  const embedding = await createEmbedding(queryText);
+  const { data, error } = await supabase
+    .rpc("match_policy_chunks", {
+      query_embedding: embedding.vector,
+      target_workspace_id: profile.workspace_id,
+      match_count: limit
+    })
+    .returns<SemanticPolicyChunk[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  const chunks = Array.isArray(data) ? (data as SemanticPolicyChunk[]) : [];
+
+  return chunks
+    .filter((chunk) => chunk.similarity > 0.2)
+    .map((chunk) => ({
+      policy_id: chunk.policy_id,
+      policy_title: chunk.policy_title,
+      source_url: chunk.policy_source_url,
+      chunk_id: chunk.id,
+      excerpt: chunk.content.slice(0, 260),
+      score: Math.round(chunk.similarity * 1000) / 1000,
+      source_kind: "workspace_policy",
+      retrieval_mode: "semantic_pgvector"
+    } as PolicyCitation));
+}
+
+async function retrieveKeywordPolicyCitations(item: CaseRecord, limit: number): Promise<PolicyCitation[]> {
   const chunks = [...governanceStandardChunks(), ...(await getVisiblePolicyChunks())];
   const query = keywordsFor(`${item.title} ${item.raw_request} ${item.department ?? ""} ${item.category ?? ""}`);
 
@@ -186,14 +238,29 @@ export async function retrievePolicyCitations(item: CaseRecord, limit = 3): Prom
       return {
         policy_id: chunk.policy_id,
         policy_title: policyTitle(chunk.policies),
-        source_url: policySource(chunk.policies),
-        chunk_id: chunk.id,
-        excerpt: chunk.content.slice(0, 260),
-        score,
-        source_kind: sourceKind
-      };
-    })
+      source_url: policySource(chunk.policies),
+      chunk_id: chunk.id,
+      excerpt: chunk.content.slice(0, 260),
+      score,
+      source_kind: sourceKind,
+      retrieval_mode: "keyword_dev"
+    };
+  })
     .filter((citation) => citation.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
+}
+
+export async function retrievePolicyCitations(item: CaseRecord, limit = 3): Promise<PolicyCitation[]> {
+  try {
+    const semanticCitations = await retrieveSemanticPolicyCitations(item, limit);
+
+    if (semanticCitations.length > 0) {
+      return semanticCitations;
+    }
+  } catch (error) {
+    console.error("Semantic policy retrieval failed; falling back to keyword retrieval", error);
+  }
+
+  return retrieveKeywordPolicyCitations(item, limit);
 }

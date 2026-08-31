@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
+import { createEmbedding } from "@/lib/embeddings";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CaseRecord, ConnectorAuthType, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord } from "@/lib/supabase/types";
@@ -671,6 +672,95 @@ export async function createPolicyAction(formData: FormData) {
   revalidatePath("/knowledge");
   revalidatePath("/audit");
   redirect("/knowledge");
+}
+
+export async function generatePolicyEmbeddingsAction() {
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/knowledge?error=policy_forbidden");
+  }
+
+  const { data: chunks, error } = await supabase
+    .from("policy_chunks")
+    .select("id, content, metadata")
+    .eq("workspace_id", profile.workspace_id)
+    .is("embedding", null)
+    .order("created_at", { ascending: true })
+    .limit(20)
+    .returns<Array<{ id: string; content: string; metadata: Record<string, unknown> | null }>>();
+
+  if (error) {
+    console.error("Failed to load chunks for embedding", error);
+    redirect("/knowledge?error=embedding_failed");
+  }
+
+  if (!chunks || chunks.length === 0) {
+    redirect("/knowledge?embedded=0");
+  }
+
+  const admin = createAdminClient();
+  let embedded = 0;
+
+  try {
+    for (const chunk of chunks) {
+      const embedding = await createEmbedding(chunk.content);
+      const { error: updateError } = await admin
+        .from("policy_chunks")
+        .update({
+          embedding: embedding.vector,
+          metadata: {
+            ...(chunk.metadata ?? {}),
+            retrieval_mode: "semantic_pgvector",
+            embedding_status: "embedded",
+            embedding_model: embedding.model,
+            embedded_at: new Date().toISOString()
+          }
+        })
+        .eq("id", chunk.id)
+        .eq("workspace_id", profile.workspace_id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      embedded += 1;
+    }
+  } catch (embeddingError) {
+    console.error("Failed to generate policy embeddings", embeddingError);
+    await admin.from("audit_logs").insert({
+      workspace_id: profile.workspace_id,
+      actor_id: user.id,
+      actor_type: "system",
+      event_type: "POLICY_EMBEDDING_FAILED",
+      event_summary: "Policy embedding generation failed.",
+      metadata: {
+        embedded,
+        error: embeddingError instanceof Error ? embeddingError.message : "Unknown embedding error"
+      }
+    });
+    redirect("/knowledge?error=embedding_failed");
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "system",
+    event_type: "POLICY_EMBEDDINGS_CREATED",
+    event_summary: `Generated semantic embeddings for ${embedded} policy chunk(s).`,
+    metadata: {
+      embedded,
+      retrieval_mode: "semantic_pgvector"
+    }
+  });
+
+  revalidatePath("/knowledge");
+  revalidatePath("/audit");
+  redirect(`/knowledge?embedded=${embedded}`);
 }
 
 export async function createWorkflowTemplateAction(formData: FormData) {
