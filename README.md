@@ -115,6 +115,12 @@ Do not commit `.env.local`. The service role key is server-only and must never b
 
 ## Demo Script
 
+For a full production demo validation path, see:
+
+```text
+docs/qa-checklist.md
+```
+
 1. Sign in as a requester and create a new case from `/new-request`.
 2. Show that the case is persisted and visible in `/cases`.
 3. Sign in as reviewer or admin and run AI analysis from the case detail page.
