@@ -56,7 +56,7 @@ export async function getVisibleCases() {
     return [];
   }
 
-  return data;
+  return data.filter((item) => !item.ai_output?.deleted_at);
 }
 
 export async function getVisibleCase(id: string) {

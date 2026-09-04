@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { analyzeCaseAction, cancelWorkflowRunAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, executeWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, retryWorkflowRunAction, reviewCaseAction } from "@/app/actions";
+import { analyzeCaseAction, cancelWorkflowRunAction, checkPolicyEvidenceAction, createWorkflowProposalAction, createWorkflowRunAction, executeWorkflowRunAction, matchWorkflowTemplateAction, provideCaseInfoAction, retryWorkflowRunAction, reviewCaseAction, trashCaseAction } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
 import { ActionList, AppShell, Kv, PageHeader, Panel, PersistedTimeline, Tag, Timeline } from "@/components/ui";
 import { formatCaseStatus, formatDateTime, formatRisk, getAuditLogsForCase, getCurrentUserContext, getVisibleCase } from "@/lib/cases";
@@ -137,6 +137,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const auditLogs = persistedCase ? await getAuditLogsForCase(persistedCase.id) : [];
   const { profile } = await getCurrentUserContext();
   const canAnalyze = profile?.role === "reviewer" || profile?.role === "admin";
+  const canTrash = profile?.role === "admin";
   const canProvideInfo = profile?.user_id === persistedCase?.created_by && persistedCase?.status === "needs_info";
   const workflowTemplates = canAnalyze ? await getVisibleWorkflowTemplates() : [];
   const workflowProposals = canAnalyze ? await getVisibleWorkflowTemplateProposals() : [];
@@ -189,6 +190,9 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {error === "workflow_execute_failed" ? <p className="auth-message error">Workflow run could not be executed.</p> : null}
         {error === "workflow_retry_failed" ? <p className="auth-message error">Workflow run could not be retried.</p> : null}
         {error === "workflow_cancel_failed" ? <p className="auth-message error">Workflow run could not be cancelled.</p> : null}
+        {error === "trash_forbidden" ? <p className="auth-message error">Only admins can move cases to trash.</p> : null}
+        {error === "trash_reason_required" ? <p className="auth-message error">Add a reason before moving this case to trash.</p> : null}
+        {error === "trash_failed" ? <p className="auth-message error">Case could not be moved to trash.</p> : null}
         <div className="detail-grid">
           <Panel title="Request" tag={<Tag tone={formatRisk(persistedCase.risk_level)}>{formatRisk(persistedCase.risk_level)}</Tag>}>
             <div className="raw-box">{persistedCase.raw_request}</div>
@@ -406,6 +410,16 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
               <pre className="payload">{JSON.stringify(persistedCase.ai_output ?? { status: "pending_step_5" }, null, 2)}</pre>
               <h3>Audit trail</h3>
               <PersistedTimeline events={auditLogs} />
+              {canTrash ? (
+                <>
+                  <h3>Danger zone</h3>
+                  <form className="inline-review-form" action={trashCaseAction}>
+                    <input type="hidden" name="case_id" value={persistedCase.id} />
+                    <input className="mini-input" name="reason" placeholder="Trash reason" required />
+                    <SubmitButton className="danger-btn" pendingText="Moving...">Move to trash</SubmitButton>
+                  </form>
+                </>
+              ) : null}
             </Panel>
           ) : (
             <Panel title="Progress" tag={<Tag tone={persistedCase.human_review_required ? "review" : "approved"}>{formatCaseStatus(persistedCase.status)}</Tag>}>

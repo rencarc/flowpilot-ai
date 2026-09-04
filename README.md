@@ -27,6 +27,7 @@ raw request
 - Server-side OpenAI structured output path with application validation
 - Semantic pgvector policy retrieval with source citations and keyword fallback
 - Human review decisions for approve, reject, and request-more-info flows
+- Admin case lifecycle controls for archive and soft-delete trash handling
 - Governed workflow template matching and AI proposal conversion
 - Backend-only connector adapter execution with mock, custom webhook, and Slack webhook support
 - Lightweight `env:` secret references with idempotency, retry, failure tracking, cancellation, and audit logs

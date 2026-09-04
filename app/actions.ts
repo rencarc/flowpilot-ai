@@ -578,6 +578,80 @@ export async function archiveCaseAction(formData: FormData) {
   redirect("/cases");
 }
 
+export async function trashCaseAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const reason = requiredString(formData, "reason");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect(`/cases/${caseId}?error=trash_forbidden`);
+  }
+
+  if (!reason) {
+    redirect(`/cases/${caseId}?error=trash_reason_required`);
+  }
+
+  const { data: visibleCase, error: readError } = await supabase
+    .from("cases")
+    .select("id, workspace_id, status, ai_output")
+    .eq("id", caseId)
+    .maybeSingle<Pick<CaseRecord, "id" | "workspace_id" | "status" | "ai_output">>();
+
+  if (readError || !visibleCase) {
+    console.error("Unauthorized or missing case for trash", readError);
+    redirect("/cases?error=case_not_visible");
+  }
+
+  const deletedAt = new Date().toISOString();
+  const admin = createAdminClient();
+  const { error: updateError } = await admin
+    .from("cases")
+    .update({
+      status: "closed",
+      human_review_required: false,
+      ai_output: {
+        ...(visibleCase.ai_output ?? {}),
+        deleted_by: user.id,
+        deleted_at: deletedAt,
+        delete_reason: reason,
+        previous_status: visibleCase.status
+      }
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to trash case", updateError);
+    redirect(`/cases/${visibleCase.id}?error=trash_failed`);
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: visibleCase.id,
+    event_type: "CASE_TRASHED",
+    event_summary: "Admin moved the case to trash.",
+    metadata: {
+      previous_status: visibleCase.status,
+      next_status: "closed",
+      deleted_at: deletedAt,
+      reason
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/review");
+  revalidatePath("/audit");
+  redirect("/cases");
+}
+
 export async function provideCaseInfoAction(formData: FormData) {
   const caseId = requiredString(formData, "case_id");
   const update = requiredString(formData, "update");

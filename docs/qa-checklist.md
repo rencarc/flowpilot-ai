@@ -104,6 +104,9 @@ Expected:
 - Requester can submit missing information.
 - Review decisions create audit events.
 - High-risk cases never skip review automatically.
+- Admin can archive a case from the case list.
+- Admin can move a garbage or test case to trash from the case detail with a reason.
+- Trashed cases disappear from the normal case list, while audit logs still show the action.
 
 ## Workflow Handoff
 
