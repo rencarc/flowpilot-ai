@@ -147,7 +147,10 @@ The database stores only the `env:` reference. The real secret stays in backend 
 For a full production demo validation path, see:
 
 ```text
+docs/demo-script.md
 docs/qa-checklist.md
+docs/architecture.md
+docs/interview-notes.md
 ```
 
 1. Sign in as a requester and create a new case from `/new-request`.
