@@ -171,7 +171,7 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
             <div className="metric"><span>AI proposals</span><strong>{proposals.length}</strong><small>Draft only until admin conversion</small></div>
             <div className="metric"><span>Admin controls</span><strong>{canManageWorkflows ? "On" : "Off"}</strong><small>{canManageWorkflows ? "Can manage workflows" : "Read-only role"}</small></div>
             <div className="metric"><span>Safety rule</span><strong>No bypass</strong><small>AI cannot execute proposals</small></div>
-            <div className="metric"><span>Next stage</span><strong>Step 8</strong><small>Create and convert templates</small></div>
+            <div className="metric"><span>Execution gate</span><strong>Controlled</strong><small>Only approved templates can run</small></div>
           </div>
           <div className="workflow-grid">
             <Panel title="Approved workflows" tag={<Tag tone="approved">{approvedTemplates.length} active</Tag>}>

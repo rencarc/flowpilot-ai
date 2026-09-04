@@ -188,7 +188,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
           </Panel>
           <Panel title="Risk control" tag={<Tag tone={formatCaseStatus(persistedCase.status)}>{formatCaseStatus(persistedCase.status)}</Tag>}>
             <h3>Summary</h3>
-            <p className="muted">{persistedCase.summary ?? "AI analysis has not run yet. This case is persisted and ready for Step 5 structured output."}</p>
+            <p className="muted">{persistedCase.summary ?? "AI analysis has not run yet. This case is ready for structured output, policy retrieval, and review routing."}</p>
             <h3>Recommendation</h3>
             <p>{typeof persistedCase.ai_output?.recommendation === "string" ? persistedCase.ai_output.recommendation : "Run AI analysis to generate a governed recommendation."}</p>
             <h3>Matched rules</h3>
