@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { archivePolicyAction } from "@/app/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { AppShell, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
 import { getVisiblePolicies, getVisiblePolicyChunks, isWorkspaceAuthoredPolicy, type PolicyChunkRecord, type PolicyRecord } from "@/lib/policies";
@@ -12,6 +14,18 @@ type CompanyPolicyView = {
   createdAt: string;
   chunks: Array<{ id: string; heading: string; content: string }>;
 };
+
+function errorText(error?: string) {
+  if (error === "policy_archive_forbidden") {
+    return "Only admins can archive workspace policies.";
+  }
+
+  if (error === "policy_archive_failed") {
+    return "Policy could not be archived.";
+  }
+
+  return null;
+}
 
 function headingFromText(content: string, fallback: string) {
   const firstLine = content.split("\n").find(Boolean);
@@ -40,18 +54,21 @@ function companyPolicyView(policy: PolicyRecord, chunks: PolicyChunkRecord[]): C
   };
 }
 
-export default async function CompanyPoliciesPage({ searchParams }: { searchParams: Promise<{ policy?: string }> }) {
-  const { policy: selectedId } = await searchParams;
+export default async function CompanyPoliciesPage({ searchParams }: { searchParams: Promise<{ error?: string; policy?: string }> }) {
+  const { error, policy: selectedId } = await searchParams;
   const { profile } = await getCurrentUserContext();
   const canReadPolicyLibrary = profile?.role === "reviewer" || profile?.role === "admin";
+  const canManagePolicies = profile?.role === "admin";
   const policies = canReadPolicyLibrary ? (await getVisiblePolicies()).filter(isWorkspaceAuthoredPolicy) : [];
   const chunks = canReadPolicyLibrary ? await getVisiblePolicyChunks() : [];
   const companyPolicies = policies.map((policy) => companyPolicyView(policy, chunks));
   const selectedPolicy = companyPolicies.find((policy) => policy.id === selectedId) ?? companyPolicies[0];
+  const message = errorText(error);
 
   return (
     <AppShell>
       <PageHeader title="Workspace policies" subtitle="Company-specific policies added by admins to supplement the baseline governance standards." action={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
+      {message ? <p className="auth-message error">{message}</p> : null}
       {canReadPolicyLibrary ? (
         <div className="policy-library-layout">
           <Panel title="Company-specific policies" tag={<Tag tone={companyPolicies.length > 0 ? "approved" : "pending"}>{companyPolicies.length} total</Tag>}>
@@ -74,6 +91,12 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
                     <h3>{selectedPolicy.title}</h3>
                     <p className="muted">{selectedPolicy.description ?? "No description provided."}</p>
                   </div>
+                  {canManagePolicies ? (
+                    <form action={archivePolicyAction}>
+                      <input type="hidden" name="policy_id" value={selectedPolicy.id} />
+                      <SubmitButton className="danger-btn" pendingText="Archiving...">Archive policy</SubmitButton>
+                    </form>
+                  ) : null}
                 </div>
                 <div className="structure-grid">
                   <div className="quote-box"><strong>Type</strong><br />{selectedPolicy.sourceType}</div>

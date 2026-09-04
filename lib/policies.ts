@@ -12,6 +12,8 @@ export interface PolicyRecord {
   source_type: string;
   source_url: string | null;
   created_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
 }
 
@@ -177,7 +179,7 @@ export const getVisiblePolicies = cache(async () => {
     return [];
   }
 
-  return data;
+  return data.filter((policy) => !policy.archived_at);
 });
 
 export const getVisiblePolicyChunks = cache(async () => {

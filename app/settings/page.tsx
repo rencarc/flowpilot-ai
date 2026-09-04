@@ -67,7 +67,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <AppShell>
-      <PageHeader title="Settings" subtitle="Workspace roles, safety gates, and backend connector placeholders." />
+      <PageHeader title="Settings" subtitle="Workspace roles, safety gates, backend connectors, and governance boundaries." />
       {errorText(error) ? <p className="auth-message error">{errorText(error)}</p> : null}
       {successText(connectorTest) ? <p className={`auth-message ${connectorTest === "succeeded" ? "success" : "error"}`}>{successText(connectorTest)}</p> : null}
       <div className="settings-grid">
@@ -77,11 +77,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <Kv label="Workspace ID" value={profile?.workspace_id ?? "Not signed in"} />
           </div>
         </Panel>
-        <Panel title="Roles">
+        <Panel title="Role permissions" tag={<Tag tone="approved">Server checked</Tag>}>
           <div className="kv">
-            <Kv label="requester" value="Create and view own cases" />
-            <Kv label="reviewer" value="Analyze, review, match workflows" />
-            <Kv label="admin" value="Manage policies, workflows, connectors" />
+            <Kv label="Requester" value="Create cases, view own cases, submit missing information" />
+            <Kv label="Reviewer" value="Run AI analysis, review cases, match approved workflows" />
+            <Kv label="Admin" value="Manage policies, workflow templates, connectors, traces, and case cleanup" />
           </div>
         </Panel>
         <Panel title="Risk gates" tag={<Tag tone="approved">Enforced</Tag>}>
@@ -89,6 +89,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <Kv label="High risk" value="Always requires review" />
             <Kv label="Missing info" value="Blocks handoff" />
             <Kv label="Approved templates only" value="AI cannot execute unknown workflows" />
+          </div>
+        </Panel>
+        <Panel title="Security model" tag={<Tag tone="approved">Governed</Tag>}>
+          <div className="kv">
+            <Kv label="Database boundary" value="Supabase RLS filters workspace data and requester ownership" />
+            <Kv label="AI boundary" value="Structured output is validated before case state changes" />
+            <Kv label="Execution boundary" value="Only backend server actions can run connector handoffs" />
+            <Kv label="Secret boundary" value="Connectors store env: references; raw secrets stay outside the browser and database rows" />
           </div>
         </Panel>
         <Panel title="Observability" tag={<Tag tone={langfuse.enabled ? "approved" : "pending"}>{langfuse.status}</Tag>}>

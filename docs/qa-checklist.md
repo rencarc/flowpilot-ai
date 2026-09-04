@@ -21,6 +21,7 @@ Use this checklist before sending the demo link or recording a walkthrough. The 
   - `202608300001_policy_rls_refinement.sql`
   - `202608310001_policy_vector_search.sql`
   - `202609040001_case_validity_windows.sql`
+  - `202609040002_policy_archive.sql`
 
 ## Roles
 
@@ -91,6 +92,7 @@ Expected:
 
 - `/knowledge` shows governance standards and company policy supplements clearly.
 - Admin can add a company-specific policy.
+- Admin can archive a company-specific policy from `/knowledge/company`.
 - Admin can generate semantic embeddings.
 - Success message says how many policy chunks were embedded.
 - Case analysis shows policy citations with source names or URLs.
@@ -113,6 +115,7 @@ Expected:
 - Approved workflow templates are visible in `/workflows`.
 - A case without a matching template can create a proposal.
 - Admin can convert a proposal into an approved template.
+- Admin can disable and re-enable a workflow template.
 - A case can be matched to an approved template.
 - Workflow run cannot be queued before case approval.
 - Workflow run cannot be queued before template match.

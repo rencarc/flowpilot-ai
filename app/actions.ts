@@ -743,7 +743,7 @@ export async function createPolicyAction(formData: FormData) {
   }
 
   if (profile.role !== "admin") {
-    redirect("/knowledge?error=policy_forbidden");
+    redirect("/knowledge/company?error=policy_archive_forbidden");
   }
 
   const title = requiredString(formData, "title");
@@ -901,6 +901,63 @@ export async function generatePolicyEmbeddingsAction() {
   redirect(`/knowledge?embedded=${embedded}`);
 }
 
+export async function archivePolicyAction(formData: FormData) {
+  const policyId = requiredString(formData, "policy_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/knowledge?error=policy_forbidden");
+  }
+
+  const { data: policy, error: readError } = await supabase
+    .from("policies")
+    .select("id, title, workspace_id, archived_at")
+    .eq("id", policyId)
+    .maybeSingle<{ id: string; title: string; workspace_id: string; archived_at: string | null }>();
+
+  if (readError || !policy) {
+    console.error("Missing policy for archive", readError);
+    redirect("/knowledge/company?error=policy_archive_failed");
+  }
+
+  const archivedAt = new Date().toISOString();
+  const admin = createAdminClient();
+  const { error: updateError } = await admin
+    .from("policies")
+    .update({
+      archived_at: archivedAt,
+      archived_by: user.id
+    })
+    .eq("id", policy.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to archive policy", updateError);
+    redirect("/knowledge/company?error=policy_archive_failed");
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: "POLICY_ARCHIVED",
+    event_summary: `Admin archived policy: ${policy.title}.`,
+    metadata: {
+      policy_id: policy.id,
+      archived_at: archivedAt
+    }
+  });
+
+  revalidatePath("/knowledge");
+  revalidatePath("/knowledge/company");
+  revalidatePath("/audit");
+  redirect("/knowledge/company");
+}
+
 export async function createWorkflowTemplateAction(formData: FormData) {
   const { supabase, user, profile } = await getCurrentUserContext();
 
@@ -977,6 +1034,65 @@ export async function createWorkflowTemplateAction(formData: FormData) {
   });
 
   revalidatePath("/workflows");
+  revalidatePath("/audit");
+  redirect("/workflows");
+}
+
+export async function toggleWorkflowTemplateAction(formData: FormData) {
+  const workflowTemplateId = requiredString(formData, "workflow_template_id");
+  const active = requiredString(formData, "active") === "true";
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/workflows?error=workflow_forbidden");
+  }
+
+  const { data: template, error: readError } = await supabase
+    .from("workflow_templates")
+    .select("id, name, workspace_id, lifecycle_status")
+    .eq("id", workflowTemplateId)
+    .maybeSingle<{ id: string; name: string; workspace_id: string; lifecycle_status: string }>();
+
+  if (readError || !template) {
+    console.error("Missing workflow template for status update", readError);
+    redirect("/workflows?error=workflow_update_failed");
+  }
+
+  const nextStatus = active ? "active" : "disabled";
+  const admin = createAdminClient();
+  const { error: updateError } = await admin
+    .from("workflow_templates")
+    .update({
+      active,
+      lifecycle_status: nextStatus
+    })
+    .eq("id", template.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to update workflow template status", updateError);
+    redirect("/workflows?error=workflow_update_failed");
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: active ? "WORKFLOW_TEMPLATE_ENABLED" : "WORKFLOW_TEMPLATE_DISABLED",
+    event_summary: active ? `Admin enabled workflow template: ${template.name}.` : `Admin disabled workflow template: ${template.name}.`,
+    metadata: {
+      workflow_template_id: template.id,
+      previous_status: template.lifecycle_status,
+      next_status: nextStatus
+    }
+  });
+
+  revalidatePath("/workflows");
+  revalidatePath("/cases");
   revalidatePath("/audit");
   redirect("/workflows");
 }

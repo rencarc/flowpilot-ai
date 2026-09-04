@@ -39,6 +39,10 @@ function errorText(error?: string) {
     return "Policy embedding generation failed. Check OpenAI billing, environment variables, and Supabase vector search migration.";
   }
 
+  if (error === "policy_archive_failed") {
+    return "Policy could not be archived.";
+  }
+
   return null;
 }
 

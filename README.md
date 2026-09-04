@@ -27,7 +27,7 @@ raw request
 - Server-side OpenAI structured output path with application validation
 - Semantic pgvector policy retrieval with source citations and keyword fallback
 - Human review decisions for approve, reject, and request-more-info flows
-- Admin case lifecycle controls for archive and soft-delete trash handling
+- Admin lifecycle controls for case archive, case trash, policy archive, and workflow template enable/disable
 - Governed workflow template matching and AI proposal conversion
 - Backend-only connector adapter execution with mock, custom webhook, and Slack webhook support
 - Lightweight `env:` secret references with idempotency, retry, failure tracking, cancellation, and audit logs
@@ -113,6 +113,7 @@ Then apply later migrations in order, including:
 supabase/migrations/202608300001_policy_rls_refinement.sql
 supabase/migrations/202608310001_policy_vector_search.sql
 supabase/migrations/202609040001_case_validity_windows.sql
+supabase/migrations/202609040002_policy_archive.sql
 ```
 
 Do not commit `.env.local`. The service role key is server-only and must never be exposed to browser code.

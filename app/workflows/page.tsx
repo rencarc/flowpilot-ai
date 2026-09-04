@@ -1,4 +1,5 @@
-import { convertWorkflowProposalAction, createWorkflowTemplateAction } from "@/app/actions";
+import { convertWorkflowProposalAction, createWorkflowTemplateAction, toggleWorkflowTemplateAction } from "@/app/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, formatRisk, getCurrentUserContext } from "@/lib/cases";
 import { getVisibleWorkflowTemplateProposals, getVisibleWorkflowTemplates } from "@/lib/workflows";
@@ -61,10 +62,14 @@ function errorText(error?: string) {
     return "Could not convert the workflow proposal.";
   }
 
+  if (error === "workflow_update_failed") {
+    return "Could not update the workflow template status.";
+  }
+
   return null;
 }
 
-function WorkflowTemplateCard({ template }: { template: WorkflowTemplateRecord }) {
+function WorkflowTemplateCard({ template, canManage }: { template: WorkflowTemplateRecord; canManage: boolean }) {
   return (
     <article className="template-card">
       <div className="row-between">
@@ -82,6 +87,13 @@ function WorkflowTemplateCard({ template }: { template: WorkflowTemplateRecord }
       </div>
       <h3>Required fields</h3>
       <div className="pill-list"><RequiredFields fields={template.required_fields} /></div>
+      {canManage ? (
+        <form className="button-row" action={toggleWorkflowTemplateAction}>
+          <input type="hidden" name="workflow_template_id" value={template.id} />
+          <input type="hidden" name="active" value={template.lifecycle_status === "disabled" ? "true" : "false"} />
+          <SubmitButton className={template.lifecycle_status === "disabled" ? "secondary-btn" : "danger-btn"} pendingText="Saving...">{template.lifecycle_status === "disabled" ? "Enable" : "Disable"}</SubmitButton>
+        </form>
+      ) : null}
     </article>
   );
 }
@@ -174,9 +186,9 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
             <div className="metric"><span>Execution gate</span><strong>Controlled</strong><small>Only approved templates can run</small></div>
           </div>
           <div className="workflow-grid">
-            <Panel title="Approved workflows" tag={<Tag tone="approved">{approvedTemplates.length} active</Tag>}>
+            <Panel title="Workflow templates" tag={<Tag tone="approved">{approvedTemplates.length} executable</Tag>}>
               <div className="template-list">
-                {approvedTemplates.length > 0 ? approvedTemplates.map((template) => <WorkflowTemplateCard key={template.id} template={template} />) : <p className="muted">No approved workflow templates have been created yet.</p>}
+                {templates.length > 0 ? templates.map((template) => <WorkflowTemplateCard canManage={canManageWorkflows} key={template.id} template={template} />) : <p className="muted">No workflow templates have been created yet.</p>}
               </div>
             </Panel>
             <Panel title="AI proposed workflows" tag={<Tag tone="review">{proposals.length} proposals</Tag>}>
