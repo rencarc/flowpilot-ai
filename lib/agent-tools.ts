@@ -35,7 +35,7 @@ function missingAccessFields(item: CaseRecord) {
       return !/\b(manager|approved|approval|owner)\b/.test(text);
     }
 
-    return !/\b(expire|expiration|until|temporary|time-limited|date)\b/.test(text);
+    return !item.access_expires_at && !/\b(expire|expiration|until|temporary|time-limited|date)\b/.test(text);
   });
 }
 
@@ -52,6 +52,8 @@ function draftHandoffPayload(
     department: item.department,
     risk_level: state?.riskLevel ?? item.risk_level,
     status: state?.status ?? item.status,
+    due_at: item.due_at,
+    access_expires_at: item.access_expires_at,
     workflow_template_id: template?.id ?? null,
     workflow_template_name: template?.name ?? null,
     policy_citation_ids: citations.map((citation) => citation.chunk_id),

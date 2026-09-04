@@ -20,6 +20,7 @@ Use this checklist before sending the demo link or recording a walkthrough. The 
   - `202608280001_initial_schema.sql`
   - `202608300001_policy_rls_refinement.sql`
   - `202608310001_policy_vector_search.sql`
+  - `202609040001_case_validity_windows.sql`
 
 ## Roles
 
@@ -62,6 +63,7 @@ Expected:
 - Risk is high.
 - Human review is required.
 - Missing information includes manager approval evidence or expiration evidence if not provided.
+- If `Access expires at` is provided, expiration should appear on the case detail and handoff payload.
 - Policy citations include access control, HR/payroll, security, or governance evidence.
 - Agent tool steps appear:
   - `retrieve_policy`
@@ -112,6 +114,7 @@ Expected:
 - Workflow run cannot be queued before case approval.
 - Workflow run cannot be queued before template match.
 - Workflow run payload preview does not expose secrets.
+- Workflow run payload includes case due date and access expiration when provided.
 
 ## Connector Execution
 

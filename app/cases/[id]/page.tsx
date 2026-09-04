@@ -196,6 +196,8 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
               <Kv label="Requester" value={persistedCase.requester ?? "Unknown"} />
               <Kv label="Department" value={persistedCase.department ?? "Not provided"} />
               <Kv label="Priority" value={persistedCase.priority ?? "Medium"} />
+              <Kv label="Case due" value={persistedCase.due_at ? formatDateTime(persistedCase.due_at) : "Not set"} />
+              <Kv label="Access expires" value={persistedCase.access_expires_at ? formatDateTime(persistedCase.access_expires_at) : "Not set"} />
               <Kv label="Created" value={formatDateTime(persistedCase.created_at)} />
             </div>
           </Panel>

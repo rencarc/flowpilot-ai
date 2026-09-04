@@ -16,6 +16,8 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
             <label><span>Title</span><input className="input" name="title" defaultValue="Payroll admin access request" required /></label>
             <label><span>Department</span><input className="input" name="department" defaultValue="HR" /></label>
             <label><span>Priority</span><input className="input" name="priority" defaultValue="High" /></label>
+            <label><span>Case due date</span><input className="input" name="due_at" type="datetime-local" /></label>
+            <label><span>Access expires at</span><input className="input" name="access_expires_at" type="datetime-local" /></label>
             <label><span>Raw request</span><textarea className="textarea" name="raw_request" defaultValue={preview.raw} required /></label>
             <div className="split-actions"><button className="primary-btn" type="submit">Create case</button><Link className="secondary-btn" href="/cases">Cancel</Link></div>
             {errorMessage ? <p className="auth-message error">{errorMessage}</p> : null}

@@ -131,14 +131,17 @@ export function PersistedCaseTable({ items, canArchive = false }: { items: CaseR
 
   return (
     <div className="table">
-      <div className="table-row table-head"><span>Case</span><span>Risk</span><span>Category</span><span>Status</span><span>Created</span><span>Detail</span></div>
+      <div className="table-row table-head"><span>Case</span><span>Risk</span><span>Category</span><span>Status</span><span>Due / Created</span><span>Detail</span></div>
       {items.map((item) => (
         <div className="table-row" key={item.id}>
           <span><strong>{item.title}</strong><small>{item.department ?? "No department"} / {item.requester ?? "Unknown requester"}</small></span>
           <span><Tag tone={formatRisk(item.risk_level)}>{formatRisk(item.risk_level)}</Tag></span>
           <span>{item.category ?? "General intake"}</span>
           <span><Tag tone={formatCaseStatus(item.status)}>{formatCaseStatus(item.status)}</Tag></span>
-          <span>{formatDateTime(item.created_at)}</span>
+          <span>
+            {item.due_at ? formatDateTime(item.due_at) : "No due date"}
+            <small>Created {formatDateTime(item.created_at)}</small>
+          </span>
           <span className="case-actions">
             <Link className="detail-link" href={`/cases/${item.id}`}>View detail</Link>
             {canArchive && item.status !== "closed" ? (

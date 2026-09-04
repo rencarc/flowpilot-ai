@@ -38,6 +38,18 @@ function parseJsonObject(value: string) {
   return parsed as Record<string, unknown>;
 }
 
+function optionalDateTime(formData: FormData, key: string) {
+  const value = requiredString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function idempotencyKeyFor(caseId: string, workflowTemplateId: string) {
   return `case:${caseId}:workflow:${workflowTemplateId}`;
 }
@@ -77,6 +89,8 @@ export async function createCaseAction(formData: FormData) {
   const title = requiredString(formData, "title") || rawRequest.slice(0, 80);
   const department = requiredString(formData, "department");
   const priority = requiredString(formData, "priority") || "Medium";
+  const dueAt = optionalDateTime(formData, "due_at");
+  const accessExpiresAt = optionalDateTime(formData, "access_expires_at");
 
   if (!rawRequest) {
     redirect("/new-request?error=missing_request");
@@ -100,7 +114,9 @@ export async function createCaseAction(formData: FormData) {
       confidence_score: null,
       missing_information: [],
       human_review_required: true,
-      policy_evidence_status: "not_checked"
+      policy_evidence_status: "not_checked",
+      due_at: dueAt,
+      access_expires_at: accessExpiresAt
     })
     .select("id")
     .single<{ id: string }>();
@@ -120,7 +136,9 @@ export async function createCaseAction(formData: FormData) {
     metadata: {
       source: "new-request",
       status: "new",
-      ai_analysis: "pending"
+      ai_analysis: "pending",
+      due_at: dueAt,
+      access_expires_at: accessExpiresAt
     }
   });
 
@@ -176,7 +194,9 @@ export async function analyzeCaseAction(formData: FormData) {
       title: visibleCase.title,
       rawRequest: visibleCase.raw_request,
       department: visibleCase.department,
-      priority: visibleCase.priority
+      priority: visibleCase.priority,
+      dueAt: visibleCase.due_at,
+      accessExpiresAt: visibleCase.access_expires_at
     });
 
     const latencyMs = Date.now() - startedAt;

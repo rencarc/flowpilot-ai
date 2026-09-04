@@ -100,7 +100,7 @@ function extractOutputText(response: Record<string, unknown>) {
   return null;
 }
 
-export async function analyzeCaseWithOpenAI(input: { title: string; rawRequest: string; department: string | null; priority: string | null }) {
+export async function analyzeCaseWithOpenAI(input: { title: string; rawRequest: string; department: string | null; priority: string | null; dueAt?: string | null; accessExpiresAt?: string | null }) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
@@ -131,7 +131,7 @@ export async function analyzeCaseWithOpenAI(input: { title: string; rawRequest: 
               medium: ["cross-team operational change", "non-sensitive workflow handoff", "business process impact"],
               low: ["informational request", "no sensitive data", "no permission, legal, financial, or production action"]
             },
-            required_access_fields: ["employee", "system", "access level", "business reason", "manager approval evidence", "expiration date"],
+            required_access_fields: ["employee", "system", "access level", "business reason", "manager approval evidence", "expiration date or access_expires_at"],
             case: input
           })
         }

@@ -111,6 +111,7 @@ Then apply later migrations in order, including:
 ```text
 supabase/migrations/202608300001_policy_rls_refinement.sql
 supabase/migrations/202608310001_policy_vector_search.sql
+supabase/migrations/202609040001_case_validity_windows.sql
 ```
 
 Do not commit `.env.local`. The service role key is server-only and must never be exposed to browser code.

@@ -69,6 +69,8 @@ export interface CaseRecord {
   policy_evidence_status: "found" | "missing" | "not_checked";
   matched_workflow_template_id: string | null;
   workflow_template_proposal_id: string | null;
+  due_at: string | null;
+  access_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
