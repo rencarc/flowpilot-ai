@@ -156,9 +156,11 @@ export function formatRisk(risk: CaseRecord["risk_level"]) {
 
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en", {
+    timeZone: "Europe/Stockholm",
     month: "short",
     day: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZoneName: "short"
   }).format(new Date(value));
 }

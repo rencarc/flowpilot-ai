@@ -109,6 +109,7 @@ h1, h2, h3, p { margin-top: 0; }
 .detail-link::after { content: " ->"; }
 .tabs, .split-actions, .tags, .pill-list, .button-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .button-row form { display: inline-flex; }
+.case-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .row-between { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .stack { display: grid; gap: 14px; }
 .full-width { width: 100%; justify-content: center; }

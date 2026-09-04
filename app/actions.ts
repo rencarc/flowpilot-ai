@@ -491,6 +491,73 @@ export async function reviewCaseAction(formData: FormData) {
   redirect(`/cases/${visibleCase.id}`);
 }
 
+export async function archiveCaseAction(formData: FormData) {
+  const caseId = requiredString(formData, "case_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/cases?error=archive_forbidden");
+  }
+
+  const { data: visibleCase, error: readError } = await supabase
+    .from("cases")
+    .select("id, workspace_id, status, ai_output")
+    .eq("id", caseId)
+    .maybeSingle<Pick<CaseRecord, "id" | "workspace_id" | "status" | "ai_output">>();
+
+  if (readError || !visibleCase) {
+    console.error("Unauthorized or missing case for archive", readError);
+    redirect("/cases?error=case_not_visible");
+  }
+
+  const archivedAt = new Date().toISOString();
+  const admin = createAdminClient();
+  const { error: updateError } = await admin
+    .from("cases")
+    .update({
+      status: "closed",
+      human_review_required: false,
+      ai_output: {
+        ...(visibleCase.ai_output ?? {}),
+        archived_by: user.id,
+        archived_at: archivedAt,
+        previous_status: visibleCase.status
+      }
+    })
+    .eq("id", visibleCase.id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (updateError) {
+    console.error("Failed to archive case", updateError);
+    redirect("/cases?error=archive_failed");
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    case_id: visibleCase.id,
+    event_type: "CASE_ARCHIVED",
+    event_summary: "Admin archived the case.",
+    metadata: {
+      previous_status: visibleCase.status,
+      next_status: "closed",
+      archived_at: archivedAt
+    }
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/cases");
+  revalidatePath(`/cases/${visibleCase.id}`);
+  revalidatePath("/review");
+  revalidatePath("/audit");
+  redirect("/cases");
+}
+
 export async function provideCaseInfoAction(formData: FormData) {
   const caseId = requiredString(formData, "case_id");
   const update = requiredString(formData, "update");

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { reviewCaseAction } from "@/app/actions";
+import { archiveCaseAction, reviewCaseAction } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import { actions, auditEvents, cases, getTemplate } from "@/lib/mock-data";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -124,7 +124,7 @@ export function CaseTable({ items = cases }) {
   );
 }
 
-export function PersistedCaseTable({ items }: { items: CaseRecord[] }) {
+export function PersistedCaseTable({ items, canArchive = false }: { items: CaseRecord[]; canArchive?: boolean }) {
   if (items.length === 0) {
     return <div className="panel-body"><p className="muted">No persisted cases yet. Create a new request to test Supabase persistence and RLS.</p></div>;
   }
@@ -133,14 +133,22 @@ export function PersistedCaseTable({ items }: { items: CaseRecord[] }) {
     <div className="table">
       <div className="table-row table-head"><span>Case</span><span>Risk</span><span>Category</span><span>Status</span><span>Created</span><span>Detail</span></div>
       {items.map((item) => (
-        <Link className="table-row" href={`/cases/${item.id}`} key={item.id}>
+        <div className="table-row" key={item.id}>
           <span><strong>{item.title}</strong><small>{item.department ?? "No department"} / {item.requester ?? "Unknown requester"}</small></span>
           <span><Tag tone={formatRisk(item.risk_level)}>{formatRisk(item.risk_level)}</Tag></span>
           <span>{item.category ?? "General intake"}</span>
           <span><Tag tone={formatCaseStatus(item.status)}>{formatCaseStatus(item.status)}</Tag></span>
           <span>{formatDateTime(item.created_at)}</span>
-          <span className="detail-link">View detail</span>
-        </Link>
+          <span className="case-actions">
+            <Link className="detail-link" href={`/cases/${item.id}`}>View detail</Link>
+            {canArchive && item.status !== "closed" ? (
+              <form action={archiveCaseAction}>
+                <input type="hidden" name="case_id" value={item.id} />
+                <button className="small-btn danger" type="submit">Archive</button>
+              </form>
+            ) : null}
+          </span>
+        </div>
       ))}
     </div>
   );
