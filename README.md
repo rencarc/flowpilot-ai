@@ -28,7 +28,8 @@ raw request
 - Semantic pgvector policy retrieval with source citations and keyword fallback
 - Human review decisions for approve, reject, and request-more-info flows
 - Governed workflow template matching and AI proposal conversion
-- Backend-only connector execution with idempotency, retry, failure tracking, cancellation, and secret references
+- Backend-only connector adapter execution with mock, custom webhook, and Slack webhook support
+- Lightweight `env:` secret references with idempotency, retry, failure tracking, cancellation, and audit logs
 - Observability dashboard for audit logs, AI traces, RAG evaluation samples, and optional Langfuse trace export
 
 ## Role Model
@@ -71,6 +72,7 @@ OPENAI_API_KEY=
 LANGFUSE_PUBLIC_KEY=
 LANGFUSE_SECRET_KEY=
 LANGFUSE_HOST=https://cloud.langfuse.com
+SLACK_WEBHOOK_URL=
 ```
 
 `OPENAI_API_KEY` is only required for real AI analysis. Langfuse variables are optional and the app works with local Supabase audit logs when they are blank.
@@ -112,6 +114,30 @@ supabase/migrations/202608310001_policy_vector_search.sql
 ```
 
 Do not commit `.env.local`. The service role key is server-only and must never be exposed to browser code.
+
+## Connectors
+
+Connector execution runs on the backend. The app currently supports:
+
+- `mock_internal_api`: local demo adapter for success and failure paths
+- `custom_webhook`: generic HTTP POST adapter for webhook.site, n8n, Make, or Power Automate HTTP triggers
+- `slack`: Slack Incoming Webhook adapter
+
+For Slack, put the real webhook URL in `.env.local` or Vercel:
+
+```text
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+
+Then create a Slack connector with:
+
+```text
+type = slack
+secret_ref = env:SLACK_WEBHOOK_URL
+auth_type = none
+```
+
+The database stores only the `env:` reference. The real secret stays in backend environment variables.
 
 ## Demo Script
 

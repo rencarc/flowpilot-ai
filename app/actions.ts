@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createHandoffPayloadStep, runGovernedAgentTools } from "@/lib/agent-tools";
 import { analyzeCaseWithOpenAI } from "@/lib/ai-analysis";
 import { getCurrentUserContext } from "@/lib/cases";
+import { executeConnectorRun, testConnector } from "@/lib/connectors";
 import { createEmbedding } from "@/lib/embeddings";
 import { exportAiAnalysisTraceToLangfuse } from "@/lib/langfuse";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
@@ -41,10 +42,6 @@ function idempotencyKeyFor(caseId: string, workflowTemplateId: string) {
   return `case:${caseId}:workflow:${workflowTemplateId}`;
 }
 
-function shouldMockFail(payload: Record<string, unknown>) {
-  return payload.force_failure === true;
-}
-
 function aiModelName() {
   return process.env.OPENAI_MODEL || "gpt-4.1-mini";
 }
@@ -67,70 +64,6 @@ function aiErrorCode(error: unknown) {
   }
 
   return "ai_output_invalid";
-}
-
-async function executeConnector(run: WorkflowRunRecord, connector: Pick<ConnectorRecord, "type" | "endpoint_url" | "auth_type" | "secret_ref"> | null) {
-  if (!connector || connector.type === "mock_internal_api") {
-    const failed = shouldMockFail(run.payload);
-
-    return {
-      failed,
-      responseStatus: failed ? 422 : 200,
-      responseBody: failed
-        ? { ok: false, message: "Mock connector rejected the payload." }
-        : { ok: true, message: "Mock connector accepted the governed workflow payload." },
-      errorMessage: failed ? "Mock connector rejected the payload." : null
-    };
-  }
-
-  if (connector.type !== "custom_webhook" || !connector.endpoint_url) {
-    return {
-      failed: true,
-      responseStatus: 400,
-      responseBody: { ok: false, message: "Connector is missing a supported endpoint URL." },
-      errorMessage: "Connector is missing a supported endpoint URL."
-    };
-  }
-
-  try {
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      "idempotency-key": run.idempotency_key
-    };
-
-    if (connector.secret_ref) {
-      headers["x-flowpilot-secret-ref"] = connector.secret_ref;
-      headers["x-flowpilot-auth-type"] = connector.auth_type;
-    }
-
-    const response = await fetch(connector.endpoint_url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(run.payload)
-    });
-    const text = await response.text();
-    let responseBody: Record<string, unknown>;
-
-    try {
-      responseBody = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-    } catch {
-      responseBody = { body: text };
-    }
-
-    return {
-      failed: !response.ok,
-      responseStatus: response.status,
-      responseBody,
-      errorMessage: response.ok ? null : `Webhook returned HTTP ${response.status}.`
-    };
-  } catch (error) {
-    return {
-      failed: true,
-      responseStatus: null,
-      responseBody: { ok: false, message: error instanceof Error ? error.message : "Unknown webhook error" },
-      errorMessage: error instanceof Error ? error.message : "Unknown webhook error"
-    };
-  }
 }
 
 export async function createCaseAction(formData: FormData) {
@@ -1199,7 +1132,7 @@ export async function createConnectorAction(formData: FormData) {
     redirect("/settings?error=missing_connector");
   }
 
-  if (!["mock_internal_api", "custom_webhook"].includes(connectorType)) {
+  if (!["mock_internal_api", "custom_webhook", "slack"].includes(connectorType)) {
     redirect("/settings?error=invalid_connector");
   }
 
@@ -1211,7 +1144,7 @@ export async function createConnectorAction(formData: FormData) {
     redirect("/settings?error=missing_connector_url");
   }
 
-  if (authType !== "none" && !secretRef) {
+  if ((authType !== "none" || connectorType === "slack") && !secretRef) {
     redirect("/settings?error=missing_secret_ref");
   }
 
@@ -1243,6 +1176,96 @@ export async function createConnectorAction(formData: FormData) {
     event_type: "CONNECTOR_CREATED",
     event_summary: `Admin created connector: ${name}.`,
     metadata: { connector_id: connector.id, type: connectorType, auth_type: authType, has_secret_ref: Boolean(secretRef) }
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/audit");
+  redirect("/settings");
+}
+
+export async function testConnectorAction(formData: FormData) {
+  const connectorId = requiredString(formData, "connector_id");
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/settings?error=connector_forbidden");
+  }
+
+  const { data: connector, error } = await supabase
+    .from("connectors")
+    .select("id, type, endpoint_url, auth_type, secret_ref")
+    .eq("id", connectorId)
+    .eq("workspace_id", profile.workspace_id)
+    .maybeSingle<Pick<ConnectorRecord, "id" | "type" | "endpoint_url" | "auth_type" | "secret_ref">>();
+
+  if (error || !connector) {
+    console.error("Missing connector for test", error);
+    redirect("/settings?error=connector_test_failed");
+  }
+
+  const result = await testConnector(connector);
+  const admin = createAdminClient();
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "connector",
+    event_type: result.failed ? "CONNECTOR_TEST_FAILED" : "CONNECTOR_TEST_SUCCEEDED",
+    event_summary: result.failed ? "Connector test failed." : "Connector test succeeded.",
+    metadata: {
+      connector_id: connector.id,
+      connector_type: connector.type,
+      adapter_type: result.adapterType,
+      response_status: result.responseStatus,
+      response_body: result.responseBody,
+      error_message: result.errorMessage
+    }
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/audit");
+  redirect(`/settings?connector_test=${result.failed ? "failed" : "succeeded"}`);
+}
+
+export async function toggleConnectorAction(formData: FormData) {
+  const connectorId = requiredString(formData, "connector_id");
+  const active = requiredString(formData, "active") === "true";
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/settings?error=connector_forbidden");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("connectors")
+    .update({ active })
+    .eq("id", connectorId)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (error) {
+    console.error("Failed to update connector status", error);
+    redirect("/settings?error=connector_update_failed");
+  }
+
+  await admin.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: active ? "CONNECTOR_ENABLED" : "CONNECTOR_DISABLED",
+    event_summary: active ? "Admin enabled connector." : "Admin disabled connector.",
+    metadata: {
+      connector_id: connectorId,
+      active
+    }
   });
 
   revalidatePath("/settings");
@@ -1362,7 +1385,7 @@ export async function executeWorkflowRunAction(formData: FormData) {
   const admin = createAdminClient();
   const startedAt = Date.now();
   const { data: connector } = run.connector_id
-    ? await admin.from("connectors").select("type, endpoint_url, auth_type, secret_ref").eq("id", run.connector_id).eq("workspace_id", profile.workspace_id).maybeSingle<Pick<ConnectorRecord, "type" | "endpoint_url" | "auth_type" | "secret_ref">>()
+    ? await admin.from("connectors").select("type, endpoint_url, auth_type, secret_ref, active").eq("id", run.connector_id).eq("workspace_id", profile.workspace_id).maybeSingle<Pick<ConnectorRecord, "type" | "endpoint_url" | "auth_type" | "secret_ref" | "active">>()
     : { data: null };
   const { data: attempts } = await admin
     .from("execution_attempts")
@@ -1381,7 +1404,15 @@ export async function executeWorkflowRunAction(formData: FormData) {
     .eq("attempt_number", attemptNumber)
     .eq("workspace_id", profile.workspace_id);
 
-  const result = await executeConnector(run, connector);
+  const result = connector?.active === false
+    ? {
+        failed: true,
+        responseStatus: 400,
+        responseBody: { ok: false, message: "Connector is disabled." },
+        errorMessage: "Connector is disabled.",
+        adapterType: connector.type
+      }
+    : await executeConnectorRun(run, connector);
   const failed = result.failed;
   const latencyMs = Date.now() - startedAt;
   const completedAt = new Date().toISOString();
@@ -1428,7 +1459,8 @@ export async function executeWorkflowRunAction(formData: FormData) {
       latency_ms: latencyMs,
       response_status: result.responseStatus,
       response_body: result.responseBody,
-      connector_type: connector?.type ?? "mock_internal_api"
+      connector_type: connector?.type ?? "mock_internal_api",
+      adapter_type: result.adapterType
     }
   });
 

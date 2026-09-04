@@ -111,6 +111,8 @@ Interview wording:
 
 Connector execution is backend-only.
 
+The connector layer uses an adapter interface so each integration can validate configuration and execute payloads consistently.
+
 Workflow runs include:
 
 - payload preview
@@ -121,7 +123,7 @@ Workflow runs include:
 - cancellation
 - failure reason
 
-Mock connectors are available for local testing. Custom webhooks are supported, but secrets are represented as `secret_ref` placeholders until a real vault integration is added.
+Implemented adapters include mock internal API, custom webhook, and Slack Incoming Webhook. Connector secrets are stored as lightweight `env:` references such as `env:SLACK_WEBHOOK_URL`; the real values live in backend environment variables.
 
 ## Observability
 
@@ -139,7 +141,7 @@ AI analysis traces are exported to Langfuse from the backend when Langfuse envir
 
 - Real OpenAI analysis requires available API credits.
 - Semantic retrieval requires generated embeddings; otherwise the app falls back to keyword retrieval.
-- Connector secret values are not resolved from a vault yet; only secret references are stored.
+- Connector secret values are resolved from backend environment variables in the demo; enterprise vault integration is future work.
 - External Langfuse trace export is environment-dependent and does not block the user flow if Langfuse is unavailable.
 - End-to-end hosted demo QA should be repeated after each production deployment.
 

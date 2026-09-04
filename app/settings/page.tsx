@@ -1,6 +1,8 @@
-import { createConnectorAction } from "@/app/actions";
+import { createConnectorAction, testConnectorAction, toggleConnectorAction } from "@/app/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, getCurrentUserContext } from "@/lib/cases";
+import { maskSecretRef } from "@/lib/connectors";
 import { getVisibleConnectors } from "@/lib/execution";
 import { getLangfuseConfigStatus } from "@/lib/observability";
 
@@ -33,11 +35,31 @@ function errorText(error?: string) {
     return "Secret ref is required for this auth type.";
   }
 
+  if (error === "connector_test_failed") {
+    return "Connector test could not be started.";
+  }
+
+  if (error === "connector_update_failed") {
+    return "Connector status could not be updated.";
+  }
+
   return null;
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+function successText(status?: string) {
+  if (status === "succeeded") {
+    return "Connector test succeeded. Check audit logs for the recorded response.";
+  }
+
+  if (status === "failed") {
+    return "Connector test failed. Check audit logs for the response and error message.";
+  }
+
+  return null;
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; connector_test?: string }> }) {
+  const { error, connector_test: connectorTest } = await searchParams;
   const { profile } = await getCurrentUserContext();
   const canManageConnectors = profile?.role === "admin";
   const connectors = canManageConnectors ? await getVisibleConnectors() : [];
@@ -47,6 +69,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <AppShell>
       <PageHeader title="Settings" subtitle="Workspace roles, safety gates, and backend connector placeholders." />
       {errorText(error) ? <p className="auth-message error">{errorText(error)}</p> : null}
+      {successText(connectorTest) ? <p className={`auth-message ${connectorTest === "succeeded" ? "success" : "error"}`}>{successText(connectorTest)}</p> : null}
       <div className="settings-grid">
         <Panel title="Workspace">
           <div className="kv">
@@ -88,9 +111,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     <select className="input" name="type" defaultValue="mock_internal_api">
                       <option value="mock_internal_api">Mock internal API</option>
                       <option value="custom_webhook">Custom webhook</option>
+                      <option value="slack">Slack incoming webhook</option>
                     </select>
                   </label>
-                  <label><span>Endpoint URL</span><input className="input" name="endpoint_url" placeholder="https://example.com/webhook/flowpilot" /></label>
+                  <label><span>Endpoint URL</span><input className="input" name="endpoint_url" placeholder="Required for custom webhook only" /></label>
                   <label>
                     <span>Auth type</span>
                     <select className="input" name="auth_type" defaultValue="none">
@@ -101,9 +125,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                       <option value="basic_auth">Basic auth</option>
                     </select>
                   </label>
-                  <label><span>Secret ref</span><input className="input" name="secret_ref" placeholder="vault://flowpilot/connectors/payroll-api" /></label>
-                  <p className="muted">Store only a secret reference here. The actual credential must live in a backend vault or deployment secret, never in browser code or workflow payloads.</p>
-                  <button className="primary-btn full-width" type="submit">Create connector</button>
+                  <label><span>Secret ref</span><input className="input" name="secret_ref" placeholder="env:SLACK_WEBHOOK_URL" /></label>
+                  <p className="muted">Store only a secret reference here. For this demo, use env variables such as env:SLACK_WEBHOOK_URL. The actual credential stays in Vercel or .env.local.</p>
+                  <SubmitButton className="primary-btn full-width" pendingText="Creating...">Create connector</SubmitButton>
                 </form>
               </details>
               <div className="template-list">
@@ -113,8 +137,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     <p>{connector.endpoint_url ?? "No external URL. This connector runs as a local mock placeholder."}</p>
                     <div className="kv">
                       <Kv label="Auth" value={connector.auth_type} />
-                      <Kv label="Secret" value={connector.secret_ref ? "Configured by reference" : "None"} />
+                      <Kv label="Secret" value={maskSecretRef(connector.secret_ref)} />
                       <Kv label="Updated" value={formatDateTime(connector.updated_at)} />
+                    </div>
+                    <div className="button-row">
+                      <form action={testConnectorAction}>
+                        <input type="hidden" name="connector_id" value={connector.id} />
+                        <SubmitButton className="secondary-btn" pendingText="Testing...">Test connector</SubmitButton>
+                      </form>
+                      <form action={toggleConnectorAction}>
+                        <input type="hidden" name="connector_id" value={connector.id} />
+                        <input type="hidden" name="active" value={connector.active ? "false" : "true"} />
+                        <SubmitButton className={connector.active ? "danger-btn" : "secondary-btn"} pendingText="Saving...">{connector.active ? "Disable" : "Enable"}</SubmitButton>
+                      </form>
                     </div>
                   </article>
                 ))}
