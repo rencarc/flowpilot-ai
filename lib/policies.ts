@@ -50,6 +50,23 @@ interface SemanticPolicyChunk {
   policy_source_url: string | null;
 }
 
+function citationSourceKind(input: { id?: string; policy_id?: string; policy_title?: string; policy_source_url?: string | null }): PolicyCitation["source_kind"] {
+  const marker = `${input.id ?? ""} ${input.policy_id ?? ""} ${input.policy_title ?? ""} ${input.policy_source_url ?? ""}`.toLowerCase();
+
+  if (
+    marker.includes("governance-standard") ||
+    marker.includes("eu ai act") ||
+    marker.includes("gdpr") ||
+    marker.includes("nist") ||
+    marker.includes("iso/iec") ||
+    marker.includes("eur-lex.europa.eu")
+  ) {
+    return "governance_standard";
+  }
+
+  return "workspace_policy";
+}
+
 export function isWorkspaceAuthoredPolicy(policy: Pick<PolicyRecord, "source_type">) {
   return policy.source_type === "manual" || policy.source_type === "url";
 }
@@ -216,7 +233,7 @@ async function retrieveSemanticPolicyCitations(item: CaseRecord, limit: number):
       chunk_id: chunk.id,
       excerpt: chunk.content.slice(0, 260),
       score: Math.round(chunk.similarity * 1000) / 1000,
-      source_kind: "workspace_policy",
+      source_kind: citationSourceKind(chunk),
       retrieval_mode: "semantic_pgvector"
     } as PolicyCitation));
 }
@@ -238,14 +255,14 @@ async function retrieveKeywordPolicyCitations(item: CaseRecord, limit: number): 
       return {
         policy_id: chunk.policy_id,
         policy_title: policyTitle(chunk.policies),
-      source_url: policySource(chunk.policies),
-      chunk_id: chunk.id,
-      excerpt: chunk.content.slice(0, 260),
-      score,
-      source_kind: sourceKind,
-      retrieval_mode: "keyword_dev"
-    };
-  })
+        source_url: policySource(chunk.policies),
+        chunk_id: chunk.id,
+        excerpt: chunk.content.slice(0, 260),
+        score,
+        source_kind: sourceKind,
+        retrieval_mode: "keyword_dev"
+      };
+    })
     .filter((citation) => citation.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);

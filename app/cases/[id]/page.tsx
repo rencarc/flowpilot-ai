@@ -62,6 +62,19 @@ function formatLooseStatus(status: string) {
     .join(" ");
 }
 
+function formatMissingInformation(value: string) {
+  const normalized = value
+    .replace(/_/g, " ")
+    .replace(/employeeaccess\s*le(?:vel)?/i, "employee, access level")
+    .replace(/accessle(?:vel)?/i, "access level")
+    .replace(/managerapproval/i, "manager approval")
+    .replace(/businessreason/i, "business reason")
+    .replace(/expirationdate/i, "expiration date")
+    .trim();
+
+  return normalized || "Missing information";
+}
+
 function latestReviewNote(output: Record<string, unknown> | null) {
   const history = output?.review_history;
 
@@ -232,7 +245,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
             )}
             <h3>Missing information</h3>
             <div className="pill-list">
-              {persistedCase.missing_information.length > 0 ? persistedCase.missing_information.map((info) => <Tag tone="review" key={info}>{info}</Tag>) : <Tag tone="approved">None recorded</Tag>}
+              {persistedCase.missing_information.length > 0 ? persistedCase.missing_information.map((info) => <Tag tone="review" key={info}>{formatMissingInformation(info)}</Tag>) : <Tag tone="approved">None recorded</Tag>}
             </div>
             {reviewNote ? (
               <>
