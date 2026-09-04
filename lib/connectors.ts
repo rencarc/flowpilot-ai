@@ -26,6 +26,28 @@ function shouldMockFail(payload: Record<string, unknown>) {
   return payload.force_failure === true;
 }
 
+function workflowKind(payload: Record<string, unknown>) {
+  const text = `${String(payload.title ?? "")} ${String(payload.department ?? "")} ${String(payload.case_type ?? "")}`.toLowerCase();
+
+  if (text.includes("onboarding")) {
+    return "onboarding_task";
+  }
+
+  if (text.includes("procurement") || text.includes("purchase") || text.includes("vendor")) {
+    return "procurement_approval";
+  }
+
+  if (text.includes("exception") || text.includes("policy")) {
+    return "policy_exception_task";
+  }
+
+  return "it_access_ticket";
+}
+
+function ticketId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
 function parseResponseBody(text: string) {
   try {
     return text ? (JSON.parse(text) as Record<string, unknown>) : {};
@@ -102,7 +124,15 @@ class MockInternalApiAdapter implements ConnectorAdapter {
       responseStatus: failed ? 422 : 200,
       responseBody: failed
         ? { ok: false, adapter: this.type, message: "Mock connector rejected the payload." }
-        : { ok: true, adapter: this.type, message: "Mock connector accepted the governed workflow payload." },
+        : {
+            ok: true,
+            adapter: this.type,
+            ticketId: ticketId("ENT"),
+            ticketType: workflowKind(payload),
+            status: "created",
+            createdAt: new Date().toISOString(),
+            message: "Mock enterprise API created a governed workflow ticket."
+          },
       errorMessage: failed ? "Mock connector rejected the payload." : null,
       adapterType: this.type
     };
@@ -112,7 +142,7 @@ class MockInternalApiAdapter implements ConnectorAdapter {
 class CustomWebhookAdapter implements ConnectorAdapter {
   type: ConnectorType = "custom_webhook";
 
-  validateConfig(connector: ConnectorConfig) {
+  validateConfig(connector: ConnectorConfig): string | null {
     if (!connector.endpoint_url) {
       return "Webhook connector is missing an endpoint URL.";
     }
@@ -171,6 +201,81 @@ class CustomWebhookAdapter implements ConnectorAdapter {
         responseStatus: null,
         responseBody: { ok: false, adapter: this.type, message: error instanceof Error ? error.message : "Unknown webhook error" },
         errorMessage: error instanceof Error ? error.message : "Unknown webhook error",
+        adapterType: this.type
+      };
+    }
+  }
+}
+
+class MakeWebhookAdapter extends CustomWebhookAdapter {
+  type: ConnectorType = "make";
+
+  validateConfig(connector: ConnectorConfig): string | null {
+    if (!connector.endpoint_url) {
+      return "Make webhook connector is missing an endpoint URL.";
+    }
+
+    if (connector.secret_ref && secretStatus(connector.secret_ref) === "unsupported_secret_ref") {
+      return "Only env: secret references are supported in this lightweight demo.";
+    }
+
+    if (connector.auth_type !== "none" && !connector.secret_ref) {
+      return "Make webhook auth requires a secret reference.";
+    }
+
+    if (connector.auth_type !== "none" && secretStatus(connector.secret_ref) === "missing_env_value") {
+      return "Make webhook secret reference points to a missing environment variable.";
+    }
+
+    return null;
+  }
+
+  async execute(input: ConnectorExecutionInput): Promise<ConnectorExecutionResult> {
+    const connector = input.connector;
+    const configError = connector ? this.validateConfig(connector) : "Connector is missing.";
+
+    if (!connector || configError) {
+      return {
+        failed: true,
+        responseStatus: 400,
+        responseBody: { ok: false, adapter: this.type, message: configError },
+        errorMessage: configError,
+        adapterType: this.type
+      };
+    }
+
+    const makeSecret = connector.auth_type === "api_key_header" ? resolveEnvSecret(connector.secret_ref) : null;
+
+    try {
+      const response = await fetch(connector.endpoint_url!, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": input.run.idempotency_key,
+          ...(makeSecret ? { "x-make-apikey": makeSecret } : authHeaders(connector.auth_type, connector.secret_ref))
+        },
+        body: JSON.stringify(input.payload ?? input.run.payload)
+      });
+      const responseBody = parseResponseBody(await response.text());
+
+      return {
+        failed: !response.ok,
+        responseStatus: response.status,
+        responseBody: {
+          externalRunId: ticketId("MAKE"),
+          externalSystem: "make",
+          ...responseBody,
+          adapter: this.type
+        },
+        errorMessage: response.ok ? null : `Make webhook returned HTTP ${response.status}.`,
+        adapterType: this.type
+      };
+    } catch (error) {
+      return {
+        failed: true,
+        responseStatus: null,
+        responseBody: { ok: false, adapter: this.type, message: error instanceof Error ? error.message : "Unknown Make webhook error" },
+        errorMessage: error instanceof Error ? error.message : "Unknown Make webhook error",
         adapterType: this.type
       };
     }
@@ -251,6 +356,7 @@ class SlackWebhookAdapter implements ConnectorAdapter {
 const adapters: ConnectorAdapter[] = [
   new MockInternalApiAdapter(),
   new CustomWebhookAdapter(),
+  new MakeWebhookAdapter(),
   new SlackWebhookAdapter()
 ];
 

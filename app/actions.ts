@@ -1409,7 +1409,7 @@ export async function createConnectorAction(formData: FormData) {
     redirect("/settings?error=missing_connector");
   }
 
-  if (!["mock_internal_api", "custom_webhook", "slack"].includes(connectorType)) {
+  if (!["mock_internal_api", "custom_webhook", "make", "slack"].includes(connectorType)) {
     redirect("/settings?error=invalid_connector");
   }
 
@@ -1417,7 +1417,7 @@ export async function createConnectorAction(formData: FormData) {
     redirect("/settings?error=invalid_connector_auth");
   }
 
-  if (connectorType === "custom_webhook" && !endpointUrl) {
+  if (["custom_webhook", "make"].includes(connectorType) && !endpointUrl) {
     redirect("/settings?error=missing_connector_url");
   }
 

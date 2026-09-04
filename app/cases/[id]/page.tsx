@@ -370,7 +370,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                         {["pending", "queued", "retrying"].includes(run.status) ? (
                           <form action={executeWorkflowRunAction}>
                             <input type="hidden" name="workflow_run_id" value={run.id} />
-                            <SubmitButton className="primary-btn" pendingText="Executing...">Execute mock run</SubmitButton>
+                            <SubmitButton className="primary-btn" pendingText="Executing...">Execute run</SubmitButton>
                           </form>
                         ) : null}
                         {run.status === "failed" && run.retry_count < run.max_retries ? (

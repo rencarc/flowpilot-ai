@@ -89,12 +89,21 @@ Back on the approved case:
 
 - match an approved workflow
 - queue workflow run
-- execute with mock or webhook connector
+- execute with Make webhook connector for the real automation path
+- use Mock enterprise API connector as the fallback path
 - show execution attempt, retry count, idempotency key, and failure reason if any
 
 Say:
 
 > Connector execution is backend-only. Secrets are represented as `env:` references and are never exposed in the browser.
+
+Recommended Make scenario:
+
+```text
+Custom webhook -> Google Sheets: Add row -> Discord: Send message
+```
+
+Use the Mock enterprise API connector when you need a reliable demo without external Make or Google account dependencies.
 
 ## 8. Audit And Observability
 
@@ -120,4 +129,3 @@ Say:
 Say:
 
 > This project is a governed AI workflow layer for internal operations. It demonstrates RAG, structured outputs, RBAC/RLS, human-in-the-loop review, backend connector execution, retries, audit logs, and observability.
-

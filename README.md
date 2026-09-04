@@ -74,6 +74,7 @@ LANGFUSE_PUBLIC_KEY=
 LANGFUSE_SECRET_KEY=
 LANGFUSE_HOST=https://cloud.langfuse.com
 SLACK_WEBHOOK_URL=
+MAKE_WEBHOOK_API_KEY=
 ```
 
 `OPENAI_API_KEY` is only required for real AI analysis. Langfuse variables are optional and the app works with local Supabase audit logs when they are blank.
@@ -124,7 +125,30 @@ Connector execution runs on the backend. The app currently supports:
 
 - `mock_internal_api`: local demo adapter for success and failure paths
 - `custom_webhook`: generic HTTP POST adapter for webhook.site, n8n, Make, or Power Automate HTTP triggers
+- `make`: Make custom webhook adapter for the real automation demo
 - `slack`: Slack Incoming Webhook adapter
+
+Recommended demo setup:
+
+```text
+FlowPilot AI -> Make webhook -> Google Sheets row -> Discord notification
+```
+
+Create a Make scenario with a Custom webhook trigger, then add Google Sheets and Discord modules. In FlowPilot Settings, create:
+
+```text
+type = make
+endpoint_url = https://hook...make.com/...
+auth_type = none
+secret_ref = empty
+```
+
+If you enable Make API key authentication, store the key in Vercel as `MAKE_WEBHOOK_API_KEY` and create the connector with:
+
+```text
+auth_type = api_key_header
+secret_ref = env:MAKE_WEBHOOK_API_KEY
+```
 
 For Slack, put the real webhook URL in `.env.local` or Vercel:
 

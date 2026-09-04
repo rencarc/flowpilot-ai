@@ -113,16 +113,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <details className="policy-maintenance">
                 <summary>Add connector</summary>
                 <form className="auth-form" action={createConnectorAction}>
-                  <label><span>Name</span><input className="input" name="name" defaultValue="Mock internal ops API" required /></label>
+                  <label><span>Name</span><input className="input" name="name" defaultValue="Make operations webhook" required /></label>
                   <label>
                     <span>Type</span>
-                    <select className="input" name="type" defaultValue="mock_internal_api">
-                      <option value="mock_internal_api">Mock internal API</option>
+                    <select className="input" name="type" defaultValue="make">
+                      <option value="make">Make webhook</option>
+                      <option value="mock_internal_api">Mock enterprise API</option>
                       <option value="custom_webhook">Custom webhook</option>
                       <option value="slack">Slack incoming webhook</option>
                     </select>
                   </label>
-                  <label><span>Endpoint URL</span><input className="input" name="endpoint_url" placeholder="Required for custom webhook only" /></label>
+                  <label><span>Endpoint URL</span><input className="input" name="endpoint_url" placeholder="https://hook.eu2.make.com/..." /></label>
                   <label>
                     <span>Auth type</span>
                     <select className="input" name="auth_type" defaultValue="none">
@@ -133,8 +134,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                       <option value="basic_auth">Basic auth</option>
                     </select>
                   </label>
-                  <label><span>Secret ref</span><input className="input" name="secret_ref" placeholder="env:SLACK_WEBHOOK_URL" /></label>
-                  <p className="muted">Store only a secret reference here. For this demo, use env variables such as env:SLACK_WEBHOOK_URL. The actual credential stays in Vercel or .env.local.</p>
+                  <label><span>Secret ref</span><input className="input" name="secret_ref" placeholder="env:MAKE_WEBHOOK_API_KEY" /></label>
+                  <p className="muted">Use Make webhook for the real automation demo and Mock enterprise API as a reliable fallback. Store only env: secret references here; raw credentials stay in Vercel or .env.local.</p>
                   <SubmitButton className="primary-btn full-width" pendingText="Creating...">Create connector</SubmitButton>
                 </form>
               </details>
@@ -142,7 +143,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 {connectors.map((connector) => (
                   <article className="template-card" key={connector.id}>
                     <div className="row-between"><h3>{connector.name}</h3><Tag tone={connector.active ? "approved" : "pending"}>{connector.type}</Tag></div>
-                    <p>{connector.endpoint_url ?? "No external URL. This connector runs as a local mock placeholder."}</p>
+                    <p>{connector.endpoint_url ?? "No external URL. This connector runs as a mock enterprise API fallback."}</p>
                     <div className="kv">
                       <Kv label="Auth" value={connector.auth_type} />
                       <Kv label="Secret" value={maskSecretRef(connector.secret_ref)} />

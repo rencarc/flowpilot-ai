@@ -16,6 +16,7 @@ Use this checklist before sending the demo link or recording a walkthrough. The 
   - `LANGFUSE_PUBLIC_KEY`
   - `LANGFUSE_SECRET_KEY`
   - `LANGFUSE_HOST`
+  - `MAKE_WEBHOOK_API_KEY` only if the Make webhook uses API key authentication
 - Supabase migrations applied:
   - `202608280001_initial_schema.sql`
   - `202608300001_policy_rls_refinement.sql`
@@ -124,8 +125,11 @@ Expected:
 
 ## Connector Execution
 
+- Make webhook connector can send a workflow payload to a Make scenario.
+- Make scenario can add a Google Sheets row and send a Discord notification.
 - Mock connector can succeed.
 - Mock connector can fail when payload includes `force_failure: true`.
+- Mock connector response includes a ticket ID, ticket type, status, and created timestamp.
 - Failed run records failure reason.
 - Failed run can be retried until retry limit.
 - Running or queued run can be cancelled.
