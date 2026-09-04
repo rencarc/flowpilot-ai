@@ -9,7 +9,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
   const errorMessage = error === "missing_request" ? "Raw request is required." : error === "create_failed" ? "Could not create the case. Check your Supabase profile/workspace and RLS policies." : null;
   return (
     <AppShell>
-      <PageHeader title="New request" subtitle="Create a persisted Supabase case for governed AI analysis, policy retrieval, and human review." action={<Link className="secondary-btn" href="/cases">Back to cases</Link>} />
+      <PageHeader title="New request" subtitle="Create a persisted Supabase case for governed AI analysis, policy retrieval, and human review." backLink={<Link className="secondary-btn" href="/cases">Back to cases</Link>} />
       <div className="create-layout">
         <Panel title="Raw request" tag={<Tag tone="pending">Persisted case</Tag>}>
           <form className="auth-form" action={createCaseAction}>

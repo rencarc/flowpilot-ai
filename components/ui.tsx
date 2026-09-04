@@ -94,8 +94,13 @@ export async function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
-  return <div className="page-header"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>;
+export function PageHeader({ title, subtitle, action, backLink }: { title: string; subtitle: string; action?: ReactNode; backLink?: ReactNode }) {
+  return (
+    <div className="page-header-stack">
+      {backLink ? <div className="page-back">{backLink}</div> : null}
+      <div className="page-header"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>
+    </div>
+  );
 }
 
 export function Panel({ title, tag, children }: { title: string; tag?: ReactNode; children: ReactNode }) {

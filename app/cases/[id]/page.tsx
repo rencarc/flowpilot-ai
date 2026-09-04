@@ -159,6 +159,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         <PageHeader
           title={persistedCase.title}
           subtitle="Persisted case record loaded through Supabase RLS."
+          backLink={<Link className="secondary-btn" href="/cases">Back to cases</Link>}
           action={
             <div className="split-actions">
               {canAnalyze ? (
@@ -167,7 +168,6 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                   <form action={analyzeCaseAction}><input type="hidden" name="case_id" value={persistedCase.id} /><SubmitButton className="primary-btn" pendingText="Analyzing...">{persistedCase.status === "ai_output_invalid" ? "Retry AI analysis" : "Analyze with AI"}</SubmitButton></form>
                 </>
               ) : null}
-              <Link className="secondary-btn" href="/cases">Back to cases</Link>
             </div>
           }
         />
@@ -460,7 +460,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const template = getTemplate(item.templateId);
   return (
     <AppShell>
-      <PageHeader title={item.title} subtitle="AI structure, policy gates, review decisions, handoff payload, and audit trail." action={<Link className="secondary-btn" href="/cases">Back to cases</Link>} />
+      <PageHeader title={item.title} subtitle="AI structure, policy gates, review decisions, handoff payload, and audit trail." backLink={<Link className="secondary-btn" href="/cases">Back to cases</Link>} />
       <div className="detail-grid">
         <Panel title="Request" tag={<Tag tone={item.riskLevel}>{item.riskLevel}</Tag>}><div className="raw-box">{item.raw}</div><div className="kv">{Object.entries(item.extractedFields).map(([label, value]) => <Kv key={label} label={label} value={value} />)}</div></Panel>
         <Panel title="Risk control" tag={<Tag tone="approved">Policy matched</Tag>}><h3>Summary</h3><p className="muted">{item.summary}</p><h3>Recommendation</h3><p>{item.recommendation}</p><h3>Matched rules</h3><div className="pill-list">{item.matchedRules.map((rule) => <Tag key={rule}>{rule}</Tag>)}</div><h3>Missing information</h3><div className="pill-list">{item.missingInfo.map((info) => <Tag tone="review" key={info}>{info}</Tag>)}</div><div className="quote-box"><strong>{template.name}</strong><br />Reviewer: {template.reviewer}<br />Target: {template.handoffTarget}</div></Panel>

@@ -71,7 +71,10 @@ h1, h2, h3, p { margin-top: 0; }
 .user-chip { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
 .avatar { width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; background: #e2edd7; color: var(--brand); font-weight: 800; }
 .content { padding: 22px; }
-.page-header { min-height: 62px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.page-header-stack { display: grid; gap: 10px; margin-bottom: 18px; }
+.page-back { display: flex; align-items: center; }
+.page-back .secondary-btn { min-height: 34px; }
+.page-header { min-height: 62px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .page-header h1 { color: var(--ink); font-size: 27px; margin-bottom: 6px; }
 .page-header p { color: var(--muted); line-height: 1.55; }
 .metric-strip { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); border: 1px solid var(--line); border-radius: 10px; background: var(--panel); overflow: hidden; margin-bottom: 16px; }

@@ -67,7 +67,7 @@ export default async function CompanyPoliciesPage({ searchParams }: { searchPara
 
   return (
     <AppShell>
-      <PageHeader title="Workspace policies" subtitle="Company-specific policies added by admins to supplement the baseline governance standards." action={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
+      <PageHeader title="Workspace policies" subtitle="Company-specific policies added by admins to supplement the baseline governance standards." backLink={<Link className="secondary-btn" href="/knowledge">Back to Knowledge</Link>} />
       {message ? <p className="auth-message error">{message}</p> : null}
       {canReadPolicyLibrary ? (
         <div className="policy-library-layout">
