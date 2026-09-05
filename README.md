@@ -175,6 +175,7 @@ docs/demo-script.md
 docs/qa-checklist.md
 docs/architecture.md
 docs/interview-notes.md
+docs/make-integration-guide.md
 ```
 
 1. Sign in as a requester and create a new case from `/new-request`.
