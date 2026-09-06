@@ -1677,6 +1677,7 @@ export async function createWorkflowRunAction(formData: FormData) {
   const policyCitations = Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [];
   const approvedAt = new Date().toISOString();
   const payload = {
+    created_at: visibleCase.created_at,
     case_id: visibleCase.id,
     case_url: `${appBaseUrl()}/cases/${visibleCase.id}`,
     title: visibleCase.title,

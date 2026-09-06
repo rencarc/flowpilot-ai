@@ -37,7 +37,7 @@ In Make, after `Custom webhook`, add `Google Sheets -> Add a Row`.
 Map fields like this:
 
 ```text
-created_at -> Make current date/time
+created_at -> created_at
 case_id -> case_id
 case_url -> case_url
 title -> title
@@ -82,4 +82,3 @@ Case URL: {{case_url}}
 - `approved_by` and `approved_at` prove human review happened before execution.
 - `policy_citation_count` and `policy_summary` prove RAG evidence was attached.
 - `missing_information` shows whether the request was complete at handoff time.
-
