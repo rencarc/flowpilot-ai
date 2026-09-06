@@ -9,6 +9,7 @@ import { executeConnectorRun, testConnector } from "@/lib/connectors";
 import { createEmbedding } from "@/lib/embeddings";
 import { exportAiAnalysisTraceToLangfuse } from "@/lib/langfuse";
 import { retrievePolicyCitations, splitPolicyContent } from "@/lib/policies";
+import { standardWorkflowTemplates } from "@/lib/standard-workflows";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CaseRecord, ConnectorAuthType, ConnectorRecord, ConnectorType, RiskLevel, WorkflowRunRecord, WorkflowTemplateProposalRecord, WorkflowTemplateRecord } from "@/lib/supabase/types";
 
@@ -1123,6 +1124,78 @@ export async function createWorkflowTemplateAction(formData: FormData) {
       risk_level: riskLevel,
       required_fields: requiredFields,
       requires_review: requiresReview
+    }
+  });
+
+  revalidatePath("/workflows");
+  revalidatePath("/audit");
+  redirect("/workflows");
+}
+
+export async function seedStandardWorkflowTemplatesAction() {
+  const { supabase, user, profile } = await getCurrentUserContext();
+
+  if (!user || !profile) {
+    redirect("/login");
+  }
+
+  if (profile.role !== "admin") {
+    redirect("/workflows?error=workflow_forbidden");
+  }
+
+  const { data: existingTemplates, error: readError } = await supabase
+    .from("workflow_templates")
+    .select("name")
+    .eq("workspace_id", profile.workspace_id)
+    .returns<Array<{ name: string }>>();
+
+  if (readError) {
+    console.error("Failed to read workflow templates before seeding", readError);
+    redirect("/workflows?error=create_workflow_failed");
+  }
+
+  const existingNames = new Set((existingTemplates ?? []).map((template) => template.name.toLowerCase()));
+  const templatesToCreate = standardWorkflowTemplates.filter((template) => !existingNames.has(template.name.toLowerCase()));
+
+  if (templatesToCreate.length === 0) {
+    revalidatePath("/workflows");
+    redirect("/workflows");
+  }
+
+  const { data: workflows, error: workflowError } = await supabase
+    .from("workflow_templates")
+    .insert(
+      templatesToCreate.map((template) => ({
+        workspace_id: profile.workspace_id,
+        name: template.name,
+        description: template.description,
+        category: template.category,
+        trigger_condition: template.trigger_condition,
+        required_fields: template.required_fields,
+        risk_level: template.risk_level,
+        requires_review: template.requires_review,
+        payload_schema: template.payload_schema,
+        active: true,
+        lifecycle_status: "approved"
+      }))
+    )
+    .select("id, name")
+    .returns<Array<{ id: string; name: string }>>();
+
+  if (workflowError || !workflows) {
+    console.error("Failed to seed standard workflow templates", workflowError);
+    redirect("/workflows?error=create_workflow_failed");
+  }
+
+  await supabase.from("audit_logs").insert({
+    workspace_id: profile.workspace_id,
+    actor_id: user.id,
+    actor_type: "user",
+    event_type: "WORKFLOW_TEMPLATE_SEEDED",
+    event_summary: `Admin seeded ${workflows.length} standard workflow template(s).`,
+    metadata: {
+      workflow_template_ids: workflows.map((workflow) => workflow.id),
+      workflow_template_names: workflows.map((workflow) => workflow.name)
     }
   });
 

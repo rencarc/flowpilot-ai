@@ -1,4 +1,4 @@
-import { convertWorkflowProposalAction, createWorkflowTemplateAction, toggleWorkflowTemplateAction } from "@/app/actions";
+import { convertWorkflowProposalAction, createWorkflowTemplateAction, seedStandardWorkflowTemplatesAction, toggleWorkflowTemplateAction } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, formatRisk, getCurrentUserContext } from "@/lib/cases";
@@ -148,6 +148,9 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
         <>
           {canManageWorkflows ? (
             <Panel title="Create workflow template" tag={<Tag tone="approved">Admin</Tag>}>
+              <form action={seedStandardWorkflowTemplatesAction}>
+                <SubmitButton className="primary-btn full-width" pendingText="Seeding...">Seed standard workflows</SubmitButton>
+              </form>
               <details className="policy-maintenance">
                 <summary>Add approved workflow</summary>
                 <form className="auth-form" action={createWorkflowTemplateAction}>
