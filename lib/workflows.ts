@@ -1,5 +1,7 @@
 import { cache } from "react";
 import { getCurrentUserContext } from "@/lib/cases";
+import { standardWorkflowTemplates } from "@/lib/standard-workflows";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { CaseRecord, WorkflowTemplateProposalRecord, WorkflowTemplateRecord } from "@/lib/supabase/types";
 
 const STOP_WORDS = new Set(["the", "and", "for", "with", "from", "that", "this", "before", "after", "request", "needs", "need", "into", "onto", "to", "of", "in", "on", "a", "an", "is", "are"]);
@@ -45,6 +47,56 @@ export const getVisibleWorkflowTemplates = cache(async () => {
 
   if (!user || !profile || profile.role === "requester") {
     return [];
+  }
+
+  if (profile.role === "admin") {
+    const { data: existingTemplates } = await supabase
+      .from("workflow_templates")
+      .select("name")
+      .eq("workspace_id", profile.workspace_id)
+      .returns<Array<{ name: string }>>();
+
+    const existingNames = new Set((existingTemplates ?? []).map((template) => template.name.toLowerCase()));
+    const templatesToCreate = standardWorkflowTemplates.filter((template) => !existingNames.has(template.name.toLowerCase()));
+
+    if (templatesToCreate.length > 0) {
+      const admin = createAdminClient();
+      const { data: seededTemplates, error: seedError } = await admin
+        .from("workflow_templates")
+        .insert(
+          templatesToCreate.map((template) => ({
+            workspace_id: profile.workspace_id,
+            name: template.name,
+            description: template.description,
+            category: template.category,
+            trigger_condition: template.trigger_condition,
+            required_fields: template.required_fields,
+            risk_level: template.risk_level,
+            requires_review: template.requires_review,
+            payload_schema: template.payload_schema,
+            active: true,
+            lifecycle_status: "approved"
+          }))
+        )
+        .select("id, name")
+        .returns<Array<{ id: string; name: string }>>();
+
+      if (seedError) {
+        console.error("Failed to auto-create standard workflow templates", seedError);
+      } else if (seededTemplates && seededTemplates.length > 0) {
+        await admin.from("audit_logs").insert({
+          workspace_id: profile.workspace_id,
+          actor_id: user.id,
+          actor_type: "system",
+          event_type: "WORKFLOW_TEMPLATE_SEEDED",
+          event_summary: `System added ${seededTemplates.length} standard workflow template(s).`,
+          metadata: {
+            workflow_template_ids: seededTemplates.map((template) => template.id),
+            workflow_template_names: seededTemplates.map((template) => template.name)
+          }
+        });
+      }
+    }
   }
 
   const { data, error } = await supabase

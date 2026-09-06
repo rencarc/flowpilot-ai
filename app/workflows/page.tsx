@@ -1,4 +1,4 @@
-import { convertWorkflowProposalAction, createWorkflowTemplateAction, seedStandardWorkflowTemplatesAction, toggleWorkflowTemplateAction } from "@/app/actions";
+import { convertWorkflowProposalAction, createWorkflowTemplateAction, toggleWorkflowTemplateAction } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
 import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { formatDateTime, formatRisk, getCurrentUserContext } from "@/lib/cases";
@@ -71,30 +71,35 @@ function errorText(error?: string) {
 
 function WorkflowTemplateCard({ template, canManage }: { template: WorkflowTemplateRecord; canManage: boolean }) {
   return (
-    <article className="template-card">
-      <div className="row-between">
-        <h3>{template.name}</h3>
+    <details className="template-card workflow-accordion">
+      <summary>
+        <span>
+          <strong>{template.name}</strong>
+          <small>{template.category} / {formatRisk(template.risk_level)} risk</small>
+        </span>
         <Tag tone={workflowTone(template)}>{template.lifecycle_status}</Tag>
+      </summary>
+      <div className="workflow-accordion-body">
+        <p>{template.description ?? "No description provided."}</p>
+        <div className="kv">
+          <Kv label="Category" value={template.category} />
+          <Kv label="Trigger" value={template.trigger_condition} />
+          <Kv label="Risk" value={formatRisk(template.risk_level)} />
+          <Kv label="Review" value={template.requires_review ? "Required" : "Optional"} />
+          <Kv label="Version" value={`v${template.version}`} />
+          <Kv label="Updated" value={formatDateTime(template.updated_at)} />
+        </div>
+        <h3>Required fields</h3>
+        <div className="pill-list"><RequiredFields fields={template.required_fields} /></div>
+        {canManage ? (
+          <form className="button-row" action={toggleWorkflowTemplateAction}>
+            <input type="hidden" name="workflow_template_id" value={template.id} />
+            <input type="hidden" name="active" value={template.lifecycle_status === "disabled" ? "true" : "false"} />
+            <SubmitButton className={template.lifecycle_status === "disabled" ? "secondary-btn" : "danger-btn"} pendingText="Saving...">{template.lifecycle_status === "disabled" ? "Enable" : "Disable"}</SubmitButton>
+          </form>
+        ) : null}
       </div>
-      <p>{template.description ?? "No description provided."}</p>
-      <div className="kv">
-        <Kv label="Category" value={template.category} />
-        <Kv label="Trigger" value={template.trigger_condition} />
-        <Kv label="Risk" value={formatRisk(template.risk_level)} />
-        <Kv label="Review" value={template.requires_review ? "Required" : "Optional"} />
-        <Kv label="Version" value={`v${template.version}`} />
-        <Kv label="Updated" value={formatDateTime(template.updated_at)} />
-      </div>
-      <h3>Required fields</h3>
-      <div className="pill-list"><RequiredFields fields={template.required_fields} /></div>
-      {canManage ? (
-        <form className="button-row" action={toggleWorkflowTemplateAction}>
-          <input type="hidden" name="workflow_template_id" value={template.id} />
-          <input type="hidden" name="active" value={template.lifecycle_status === "disabled" ? "true" : "false"} />
-          <SubmitButton className={template.lifecycle_status === "disabled" ? "secondary-btn" : "danger-btn"} pendingText="Saving...">{template.lifecycle_status === "disabled" ? "Enable" : "Disable"}</SubmitButton>
-        </form>
-      ) : null}
-    </article>
+    </details>
   );
 }
 
@@ -148,9 +153,6 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
         <>
           {canManageWorkflows ? (
             <Panel title="Create workflow template" tag={<Tag tone="approved">Admin</Tag>}>
-              <form action={seedStandardWorkflowTemplatesAction}>
-                <SubmitButton className="primary-btn full-width" pendingText="Seeding...">Seed standard workflows</SubmitButton>
-              </form>
               <details className="policy-maintenance">
                 <summary>Add approved workflow</summary>
                 <form className="auth-form" action={createWorkflowTemplateAction}>

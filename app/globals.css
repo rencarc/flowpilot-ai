@@ -164,6 +164,15 @@ h1, h2, h3, p { margin-top: 0; }
 .action-row:hover, .policy-row:hover, .template-card:hover, .example-btn:hover { transform: translateY(-2px); border-color: var(--line-strong); box-shadow: 0 12px 28px rgba(36,70,30,.08); }
 .action-row h3, .policy-row h3, .template-card h3, .failure-row h3 { margin: 0 0 5px; color: var(--ink); font-size: 15px; }
 .action-row p, .policy-row p, .template-card p, .failure-row p { margin: 0; color: var(--muted); line-height: 1.45; }
+.workflow-accordion { padding: 0; }
+.workflow-accordion summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px; }
+.workflow-accordion summary::-webkit-details-marker { display: none; }
+.workflow-accordion summary::before { content: "›"; color: var(--brand); font-weight: 900; transform: rotate(0deg); transition: transform 160ms ease; }
+.workflow-accordion[open] summary::before { transform: rotate(90deg); }
+.workflow-accordion summary span { min-width: 0; display: grid; gap: 4px; flex: 1; }
+.workflow-accordion summary strong { color: var(--ink); font-size: 15px; }
+.workflow-accordion summary small { color: var(--muted); line-height: 1.35; }
+.workflow-accordion-body { border-top: 1px solid var(--line); padding: 13px; display: grid; gap: 12px; }
 .example-btn strong, .example-btn span { display: block; }
 .example-btn span { color: var(--muted); line-height: 1.45; margin-top: 4px; }
 .clean-list { margin: 0; padding-left: 20px; color: var(--text); line-height: 1.8; }
