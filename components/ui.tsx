@@ -113,7 +113,7 @@ export function Kv({ label, value }: { label: string; value: ReactNode }) {
 
 export function CaseTable({ items = cases }) {
   return (
-    <div className="table">
+    <div className="table case-table">
       <div className="table-row table-head"><span>Case</span><span>Risk</span><span>Template</span><span>Status</span><span>Handoff</span><span>Detail</span></div>
       {items.map((item) => (
         <Link className="table-row" href={`/cases/${item.id}`} key={item.id}>
@@ -135,7 +135,7 @@ export function PersistedCaseTable({ items, canArchive = false }: { items: CaseR
   }
 
   return (
-    <div className="table">
+    <div className="table case-table">
       <div className="table-row table-head"><span>Case</span><span>Risk</span><span>Category</span><span>Status</span><span>Due / Created</span><span>Detail</span></div>
       {items.map((item) => (
         <div className="table-row" key={item.id}>
