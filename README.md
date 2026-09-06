@@ -68,6 +68,7 @@ Create `.env.local` from `.env.example`:
 ```text
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:4173
 SUPABASE_SERVICE_ROLE_KEY=
 OPENAI_API_KEY=
 LANGFUSE_PUBLIC_KEY=
@@ -176,6 +177,8 @@ docs/qa-checklist.md
 docs/architecture.md
 docs/interview-notes.md
 docs/make-integration-guide.md
+docs/google-sheets-mapping.md
+docs/flowpilot-make-google-sheets-template.csv
 ```
 
 1. Sign in as a requester and create a new case from `/new-request`.

@@ -92,6 +92,12 @@ Secret ref: empty
 
 ## Suggested Google Sheet Columns
 
+Use this CSV template if you want to import the sheet structure directly:
+
+```text
+docs/flowpilot-make-google-sheets-template.csv
+```
+
 ```text
 created_at
 case_id
@@ -172,4 +178,3 @@ Not needed now:
 - Power Automate OAuth
 - full workflow builder
 - enterprise vault integration
-

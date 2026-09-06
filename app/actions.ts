@@ -54,6 +54,31 @@ function idempotencyKeyFor(caseId: string, workflowTemplateId: string) {
   return `case:${caseId}:workflow:${workflowTemplateId}`;
 }
 
+function appBaseUrl() {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  return "http://localhost:4173";
+}
+
+function policySummary(citations: unknown[]) {
+  return citations
+    .filter((citation): citation is Record<string, unknown> => citation !== null && typeof citation === "object")
+    .map((citation) => {
+      const title = typeof citation.policy_title === "string" ? citation.policy_title : "Policy evidence";
+      const excerpt = typeof citation.excerpt === "string" ? citation.excerpt : "";
+
+      return excerpt ? `${title}: ${excerpt}` : title;
+    })
+    .slice(0, 3)
+    .join(" | ");
+}
+
 function aiModelName() {
   return process.env.OPENAI_MODEL || "gpt-4.1-mini";
 }
@@ -1581,13 +1606,27 @@ export async function createWorkflowRunAction(formData: FormData) {
     redirect(`/cases/${caseId}?error=workflow_run_not_ready`);
   }
 
+  const policyCitations = Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [];
+  const approvedAt = new Date().toISOString();
   const payload = {
     case_id: visibleCase.id,
+    case_url: `${appBaseUrl()}/cases/${visibleCase.id}`,
     title: visibleCase.title,
     requester: visibleCase.requester,
     department: visibleCase.department,
+    status: visibleCase.status,
+    priority: visibleCase.priority,
     risk_level: visibleCase.risk_level,
-    policy_citations: Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [],
+    missing_information: visibleCase.missing_information,
+    due_at: visibleCase.due_at,
+    access_expires_at: visibleCase.access_expires_at,
+    workflow_template_id: template.id,
+    workflow_name: template.name,
+    approved_by: user.email ?? profile.full_name ?? user.id,
+    approved_at: approvedAt,
+    policy_citation_count: policyCitations.length,
+    policy_summary: policySummary(policyCitations),
+    policy_citations: policyCitations,
     schema: template.payload_schema
   };
   const idempotencyKey = idempotencyKeyFor(visibleCase.id, template.id);
@@ -1603,7 +1642,7 @@ export async function createWorkflowRunAction(formData: FormData) {
       payload,
       idempotency_key: idempotencyKey,
       approved_by: user.id,
-      approved_at: new Date().toISOString()
+      approved_at: approvedAt
     }, { onConflict: "idempotency_key" })
     .select("id")
     .single<{ id: string }>();
