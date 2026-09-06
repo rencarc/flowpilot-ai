@@ -521,6 +521,13 @@ export async function reviewCaseAction(formData: FormData) {
     redirect("/review?error=case_not_visible");
   }
 
+  const reviewReadyStatuses = new Set(["in_review", "needs_info", "policy_evidence_missing", "ready_to_run"]);
+  const hasAiAnalysis = Boolean(visibleCase.ai_output && typeof visibleCase.ai_output === "object" && !Array.isArray(visibleCase.ai_output));
+
+  if (decision === "approve" && (!hasAiAnalysis || visibleCase.policy_evidence_status === "not_checked" || !reviewReadyStatuses.has(visibleCase.status))) {
+    redirect(`/cases/${visibleCase.id}?error=review_not_ready`);
+  }
+
   const reviewConfig = {
     approve: {
       status: "approved" as const,

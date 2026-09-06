@@ -152,6 +152,12 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const agentSteps = persistedCase ? agentStepsFrom(persistedCase.ai_output) : [];
   const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
   const requesterUpdate = persistedCase ? latestRequesterUpdate(persistedCase.ai_output) : null;
+  const canApproveCase = Boolean(
+    persistedCase &&
+    persistedCase.ai_output &&
+    persistedCase.policy_evidence_status !== "not_checked" &&
+    ["in_review", "needs_info", "policy_evidence_missing", "ready_to_run"].includes(persistedCase.status)
+  );
 
   if (persistedCase) {
     return (
@@ -175,6 +181,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
         {aiErrorMessage(error) ? <p className="auth-message error">{aiErrorMessage(error)}</p> : null}
         {error === "policy_check_failed" ? <p className="auth-message error">Policy evidence check failed. Review the policy source and Supabase logs.</p> : null}
         {error === "review_forbidden" ? <p className="auth-message error">Review decisions are restricted to reviewer/admin roles.</p> : null}
+        {error === "review_not_ready" ? <p className="auth-message error">Run AI analysis and policy retrieval before approving this case.</p> : null}
         {error === "review_failed" ? <p className="auth-message error">Review decision could not be saved. Check Supabase logs and try again.</p> : null}
         {error === "invalid_review_decision" ? <p className="auth-message error">Invalid review decision.</p> : null}
         {error === "missing_update" ? <p className="auth-message error">Please add the requested information before submitting.</p> : null}
@@ -276,11 +283,12 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
               <h3>Current status</h3>
               <p className="muted">{formatCaseStatus(persistedCase.status)}</p>
               <h3>Review decision</h3>
+              {!canApproveCase ? <p className="auth-message">Run AI analysis first. Approval is available after structured output and policy evidence are recorded.</p> : null}
               <div className="review-actions">
                 <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
                   <input type="hidden" name="decision" value="approve" />
-                  <SubmitButton className="primary-btn" pendingText="Approving...">Approve</SubmitButton>
+                  <SubmitButton className="primary-btn" disabled={!canApproveCase} pendingText="Approving...">Approve</SubmitButton>
                 </form>
                 <form className="review-form" action={reviewCaseAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
