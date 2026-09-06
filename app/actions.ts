@@ -50,6 +50,12 @@ function optionalDateTime(formData: FormData, key: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function isMissingValidityColumnError(error: { message?: string; details?: string; hint?: string } | null) {
+  const text = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+
+  return text.includes("due_at") || text.includes("access_expires_at");
+}
+
 function idempotencyKeyFor(caseId: string, workflowTemplateId: string) {
   return `case:${caseId}:workflow:${workflowTemplateId}`;
 }
@@ -122,29 +128,43 @@ export async function createCaseAction(formData: FormData) {
   }
 
   const summary = `Initial persisted intake from ${department || "unknown department"}. AI analysis is pending Step 5.`;
-  const { data: createdCase, error: caseError } = await supabase
+  const baseCaseInsert = {
+    workspace_id: profile.workspace_id,
+    created_by: user.id,
+    title,
+    raw_request: rawRequest,
+    summary,
+    requester: profile.full_name ?? user.email,
+    department: department || null,
+    category: "General intake",
+    priority,
+    risk_level: "medium" as const,
+    status: "new" as const,
+    confidence_score: null,
+    missing_information: [],
+    human_review_required: true,
+    policy_evidence_status: "not_checked" as const
+  };
+  let { data: createdCase, error: caseError } = await supabase
     .from("cases")
     .insert({
-      workspace_id: profile.workspace_id,
-      created_by: user.id,
-      title,
-      raw_request: rawRequest,
-      summary,
-      requester: profile.full_name ?? user.email,
-      department: department || null,
-      category: "General intake",
-      priority,
-      risk_level: "medium",
-      status: "new",
-      confidence_score: null,
-      missing_information: [],
-      human_review_required: true,
-      policy_evidence_status: "not_checked",
+      ...baseCaseInsert,
       due_at: dueAt,
       access_expires_at: accessExpiresAt
     })
     .select("id")
     .single<{ id: string }>();
+
+  if (caseError && isMissingValidityColumnError(caseError)) {
+    console.warn("Case validity columns are missing; creating case without due/access expiration fields.", caseError);
+    const fallbackResult = await supabase
+      .from("cases")
+      .insert(baseCaseInsert)
+      .select("id")
+      .single<{ id: string }>();
+    createdCase = fallbackResult.data;
+    caseError = fallbackResult.error;
+  }
 
   if (caseError || !createdCase) {
     console.error("Failed to create case", caseError);
