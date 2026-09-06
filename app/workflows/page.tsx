@@ -77,7 +77,6 @@ function WorkflowTemplateCard({ template, canManage }: { template: WorkflowTempl
           <strong>{template.name}</strong>
           <small>{template.category} / {formatRisk(template.risk_level)} risk</small>
         </span>
-        <small className="workflow-row-meta">{template.requires_review ? "Review required" : "Review optional"}</small>
       </summary>
       <div className="workflow-accordion-body">
         <p>{template.description ?? "No description provided."}</p>
@@ -196,9 +195,9 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
                 {templates.length > 0 ? templates.map((template) => <WorkflowTemplateCard canManage={canManageWorkflows} key={template.id} template={template} />) : <p className="muted">No workflow templates have been created yet.</p>}
               </div>
             </Panel>
-            <Panel title="AI proposed workflows" tag={<Tag tone="review">{proposals.length} proposals</Tag>}>
+            <Panel title="Workflow proposals" tag={<Tag tone="review">{proposals.length} proposals</Tag>}>
               <div className="template-list">
-                {proposals.length > 0 ? proposals.map((proposal) => <ProposalCard canConvert={canManageWorkflows} key={proposal.id} proposal={proposal} />) : <p className="muted">No AI workflow proposals have been recorded yet.</p>}
+                {proposals.length > 0 ? proposals.map((proposal) => <ProposalCard canConvert={canManageWorkflows} key={proposal.id} proposal={proposal} />) : <p className="muted">No proposals yet. When a case cannot match an approved workflow template, a reviewer can create a proposal from the case detail page. Admins can then convert it into an approved workflow.</p>}
               </div>
             </Panel>
           </div>

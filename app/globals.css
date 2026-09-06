@@ -172,7 +172,6 @@ h1, h2, h3, p { margin-top: 0; }
 .workflow-accordion summary span { min-width: 0; display: grid; gap: 4px; flex: 1; }
 .workflow-accordion summary strong { color: var(--ink); font-size: 15px; }
 .workflow-accordion summary small { color: var(--muted); line-height: 1.35; }
-.workflow-row-meta { color: var(--muted); font-size: 12px; font-weight: 760; white-space: nowrap; }
 .workflow-accordion-body { border-top: 1px solid var(--line); padding: 13px; display: grid; gap: 12px; }
 .example-btn strong, .example-btn span { display: block; }
 .example-btn span { color: var(--muted); line-height: 1.45; margin-top: 4px; }
