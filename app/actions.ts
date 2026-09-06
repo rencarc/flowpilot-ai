@@ -172,7 +172,6 @@ export async function createCaseAction(formData: FormData) {
   const department = requiredString(formData, "department");
   const priority = requiredString(formData, "priority") || "Medium";
   const dueAt = optionalDateTime(formData, "due_at");
-  const accessExpiresAt = optionalDateTime(formData, "access_expires_at");
 
   if (!rawRequest) {
     redirect("/new-request?error=missing_request");
@@ -200,8 +199,7 @@ export async function createCaseAction(formData: FormData) {
     .from("cases")
     .insert({
       ...baseCaseInsert,
-      due_at: dueAt,
-      access_expires_at: accessExpiresAt
+      due_at: dueAt
     })
     .select("id")
     .single<{ id: string }>();
@@ -233,8 +231,7 @@ export async function createCaseAction(formData: FormData) {
       source: "new-request",
       status: "new",
       ai_analysis: "pending",
-      due_at: dueAt,
-      access_expires_at: accessExpiresAt
+      due_at: dueAt
     }
   });
 

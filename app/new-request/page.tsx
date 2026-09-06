@@ -26,7 +26,6 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
   const { error } = await searchParams;
   const preview = cases[0];
   const dueAtDefault = defaultDatetimeLocalValue(2);
-  const accessExpiresAtDefault = defaultDatetimeLocalValue(4);
   const errorMessage = error === "missing_request" ? "Raw request is required." : error === "create_failed" ? "Could not create the case. Check your Supabase profile/workspace and RLS policies." : null;
   return (
     <AppShell>
@@ -41,11 +40,6 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
               <span>Case due date</span>
               <input className="input" lang="en" name="due_at" type="datetime-local" defaultValue={dueAtDefault} />
               <small className="field-help">Target time for review or completion. Used for SLA and urgency.</small>
-            </label>
-            <label>
-              <span>Access expires at</span>
-              <input className="input" lang="en" name="access_expires_at" type="datetime-local" defaultValue={accessExpiresAtDefault} />
-              <small className="field-help">Expiration time for temporary access. Used for least-privilege and rollback control.</small>
             </label>
             <label><span>Raw request</span><textarea className="textarea" name="raw_request" defaultValue={preview.raw} required /></label>
             <div className="split-actions"><button className="primary-btn" type="submit">Create case</button><Link className="secondary-btn" href="/cases">Cancel</Link></div>
