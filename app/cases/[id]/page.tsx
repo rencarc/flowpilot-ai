@@ -158,6 +158,10 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
     persistedCase.policy_evidence_status !== "not_checked" &&
     ["in_review", "needs_info", "policy_evidence_missing", "ready_to_run"].includes(persistedCase.status)
   );
+  const workflowRunBlockers = [
+    ...(persistedCase?.status === "approved" ? [] : [`Case status is ${persistedCase ? formatCaseStatus(persistedCase.status) : "not ready"}. Approve the case before queueing a run.`]),
+    ...(matchedWorkflow ? [] : ["Match an approved workflow template before queueing a run."])
+  ];
 
   if (persistedCase) {
     return (
@@ -361,7 +365,12 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                   <SubmitButton className="primary-btn" pendingText="Queueing...">Queue workflow run</SubmitButton>
                 </form>
               ) : (
-                <p className="muted">A workflow run can be queued only after the case is approved and matched to an approved workflow.</p>
+                <div className="quote-box">
+                  <strong>Not ready to queue</strong>
+                  <ol className="clean-list">
+                    {workflowRunBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+                  </ol>
+                </div>
               )}
               {workflowRuns.length > 0 ? (
                 <div className="template-list">
