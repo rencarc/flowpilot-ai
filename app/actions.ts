@@ -38,11 +38,62 @@ function parseJsonObject(value: string) {
   return parsed as Record<string, unknown>;
 }
 
+function stockholmParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    year: Number(value.year),
+    month: Number(value.month),
+    day: Number(value.day),
+    hour: Number(value.hour),
+    minute: Number(value.minute),
+    second: Number(value.second)
+  };
+}
+
+function stockholmDatetimeLocalToIso(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const rendered = stockholmParts(utcGuess);
+  const renderedAsUtc = Date.UTC(rendered.year, rendered.month - 1, rendered.day, rendered.hour, rendered.minute, rendered.second);
+  const requestedAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+  const stockholmOffsetMs = renderedAsUtc - utcGuess.getTime();
+
+  return new Date(requestedAsUtc - stockholmOffsetMs).toISOString();
+}
+
 function optionalDateTime(formData: FormData, key: string) {
   const value = requiredString(formData, key);
 
   if (!value) {
     return null;
+  }
+
+  const stockholmIso = stockholmDatetimeLocalToIso(value);
+
+  if (stockholmIso) {
+    return stockholmIso;
   }
 
   const date = new Date(value);

@@ -3,9 +3,30 @@ import { AppShell, Kv, PageHeader, Panel, Tag } from "@/components/ui";
 import { createCaseAction } from "@/app/actions";
 import { cases, getTemplate } from "@/lib/mock-data";
 
+function toStockholmDatetimeLocalValue(date: Date) {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${value.year}-${value.month}-${value.day}T${value.hour}:${value.minute}`;
+}
+
+function defaultDatetimeLocalValue(hoursFromNow: number) {
+  return toStockholmDatetimeLocalValue(new Date(Date.now() + hoursFromNow * 60 * 60 * 1000));
+}
+
 export default async function NewRequestPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   const preview = cases[0];
+  const dueAtDefault = defaultDatetimeLocalValue(2);
+  const accessExpiresAtDefault = defaultDatetimeLocalValue(4);
   const errorMessage = error === "missing_request" ? "Raw request is required." : error === "create_failed" ? "Could not create the case. Check your Supabase profile/workspace and RLS policies." : null;
   return (
     <AppShell>
@@ -16,8 +37,16 @@ export default async function NewRequestPage({ searchParams }: { searchParams: P
             <label><span>Title</span><input className="input" name="title" defaultValue="Payroll admin access request" required /></label>
             <label><span>Department</span><input className="input" name="department" defaultValue="HR" /></label>
             <label><span>Priority</span><input className="input" name="priority" defaultValue="High" /></label>
-            <label><span>Case due date</span><input className="input" name="due_at" placeholder="2026-09-06 18:00" /></label>
-            <label><span>Access expires at</span><input className="input" name="access_expires_at" placeholder="2026-09-06 20:00" /></label>
+            <label>
+              <span>Case due date</span>
+              <input className="input" lang="en" name="due_at" type="datetime-local" defaultValue={dueAtDefault} />
+              <small className="field-help">Target time for review or completion. Used for SLA and urgency.</small>
+            </label>
+            <label>
+              <span>Access expires at</span>
+              <input className="input" lang="en" name="access_expires_at" type="datetime-local" defaultValue={accessExpiresAtDefault} />
+              <small className="field-help">Expiration time for temporary access. Used for least-privilege and rollback control.</small>
+            </label>
             <label><span>Raw request</span><textarea className="textarea" name="raw_request" defaultValue={preview.raw} required /></label>
             <div className="split-actions"><button className="primary-btn" type="submit">Create case</button><Link className="secondary-btn" href="/cases">Cancel</Link></div>
             {errorMessage ? <p className="auth-message error">{errorMessage}</p> : null}
