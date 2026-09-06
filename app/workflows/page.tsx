@@ -77,7 +77,7 @@ function WorkflowTemplateCard({ template, canManage }: { template: WorkflowTempl
           <strong>{template.name}</strong>
           <small>{template.category} / {formatRisk(template.risk_level)} risk</small>
         </span>
-        <Tag tone={workflowTone(template)}>{template.lifecycle_status}</Tag>
+        <small className="workflow-row-meta">{template.requires_review ? "Review required" : "Review optional"}</small>
       </summary>
       <div className="workflow-accordion-body">
         <p>{template.description ?? "No description provided."}</p>
