@@ -4,6 +4,7 @@ Create a Google Sheet with these columns:
 
 ```text
 created_at
+case_created_at
 case_id
 case_url
 title
@@ -38,6 +39,7 @@ Map fields like this:
 
 ```text
 created_at -> created_at
+case_created_at -> case_created_at
 case_id -> case_id
 case_url -> case_url
 title -> title
@@ -54,8 +56,8 @@ policy_summary -> policy_summary
 missing_information -> missing_information
 due_at -> due_at
 access_expires_at -> access_expires_at
-external_status -> received
-notes -> FlowPilot approved workflow handoff
+external_status -> external_status
+notes -> notes
 ```
 
 ## Discord Message Template
@@ -78,6 +80,7 @@ Case URL: {{case_url}}
 ## Why These Fields Matter
 
 - `case_url` lets the reviewer jump back to FlowPilot.
+- `created_at` and `case_created_at` show when the original case was created.
 - `workflow_name` proves the handoff came from an approved template.
 - `approved_by` and `approved_at` prove human review happened before execution.
 - `policy_citation_count` and `policy_summary` prove RAG evidence was attached.

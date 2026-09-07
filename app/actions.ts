@@ -1685,6 +1685,7 @@ export async function createWorkflowRunAction(formData: FormData) {
   const approvedAt = new Date().toISOString();
   const payload = {
     created_at: visibleCase.created_at,
+    case_created_at: visibleCase.created_at,
     case_id: visibleCase.id,
     case_url: `${appBaseUrl()}/cases/${visibleCase.id}`,
     title: visibleCase.title,
@@ -1703,6 +1704,8 @@ export async function createWorkflowRunAction(formData: FormData) {
     policy_citation_count: policyCitations.length,
     policy_summary: policySummary(policyCitations),
     policy_citations: policyCitations,
+    external_status: "approved_handoff_sent",
+    notes: "FlowPilot approved workflow handoff.",
     schema: template.payload_schema
   };
   const idempotencyKey = idempotencyKeyFor(visibleCase.id, template.id);

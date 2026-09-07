@@ -53,11 +53,26 @@ When an approved workflow run is executed, FlowPilot sends a JSON payload like:
 
 ```json
 {
+  "created_at": "2026-09-06T11:59:00.000Z",
+  "case_created_at": "2026-09-06T11:59:00.000Z",
   "case_id": "77248e33-6214-401c-a65a-8dd4f6f1b448",
+  "case_url": "https://flowpilot-ai-eta.vercel.app/cases/77248e33-6214-401c-a65a-8dd4f6f1b448",
   "title": "Payroll admin access request",
   "requester": "zhen xu",
   "department": "HR",
+  "priority": "High",
+  "status": "approved",
   "risk_level": "high",
+  "workflow_name": "Payroll access review",
+  "approved_by": "reviewer@example.com",
+  "approved_at": "2026-09-06T12:07:22.569Z",
+  "policy_citation_count": 3,
+  "policy_summary": "Privileged access approval policy: Temporary admin access requires manager approval.",
+  "missing_information": [],
+  "due_at": "2026-09-06T13:59:00.000Z",
+  "access_expires_at": null,
+  "external_status": "approved_handoff_sent",
+  "notes": "FlowPilot approved workflow handoff.",
   "policy_citations": [],
   "schema": {}
 }
@@ -100,24 +115,50 @@ docs/flowpilot-make-google-sheets-template.csv
 
 ```text
 created_at
+case_created_at
 case_id
+case_url
 title
 requester
 department
+priority
 risk_level
 status
+workflow_name
+approved_by
+approved_at
+policy_citation_count
+policy_summary
+missing_information
+due_at
+access_expires_at
+external_status
+notes
 ```
 
 Example mapping:
 
 ```text
-created_at -> Make current date/time
+created_at -> created_at
+case_created_at -> case_created_at
 case_id -> case_id
+case_url -> case_url
 title -> title
 requester -> requester
 department -> department
+priority -> priority
 risk_level -> risk_level
-status -> received
+status -> status
+workflow_name -> workflow_name
+approved_by -> approved_by
+approved_at -> approved_at
+policy_citation_count -> policy_citation_count
+policy_summary -> policy_summary
+missing_information -> missing_information
+due_at -> due_at
+access_expires_at -> access_expires_at
+external_status -> external_status
+notes -> notes
 ```
 
 ## Why Keep The Mock Connector
