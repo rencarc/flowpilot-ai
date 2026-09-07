@@ -14,6 +14,10 @@ Say:
 
 > FlowPilot AI turns unclear internal requests into structured, policy-aware, auditable workflow handoffs. The important rule is that AI can recommend, but it cannot approve or execute high-risk work by itself.
 
+Also say:
+
+> Make and Google Sheets are only the external demo destination. FlowPilot is the governance layer that decides whether a request is complete, policy-supported, reviewed, and allowed to be handed off.
+
 ## 2. Create A Case
 
 Open `/new-request` and create a case:
@@ -54,6 +58,10 @@ Say:
 
 > The system retrieves policy evidence before recommending a handoff. If no evidence is found, the case is blocked for review instead of silently moving forward.
 
+Explain:
+
+> RAG is not just for search. It gives the reviewer evidence for why a case was marked risky or incomplete. For example, payroll admin access is not blocked because the model "feels" it is risky; it is blocked because the retrieved policy says temporary privileged access requires manager approval, least privilege, expiration, and authorized review.
+
 ## 5. Human Review
 
 Open `/review` or the case detail review controls.
@@ -83,6 +91,12 @@ Say:
 
 > AI can draft a workflow proposal, but only admin-approved templates become executable.
 
+If no workflow matches, show `Create no-match proposal`.
+
+Say:
+
+> A proposal is a draft. It cannot run connectors. An admin must convert it into an approved template before future cases can use it.
+
 ## 7. Workflow Run And Connector
 
 Back on the approved case:
@@ -104,6 +118,10 @@ Custom webhook -> Google Sheets: Add row -> Discord: Send message
 ```
 
 Use the Mock enterprise API connector when you need a reliable demo without external Make or Google account dependencies.
+
+Say:
+
+> The spreadsheet row is not the product. It proves the connector handoff is real. In production this destination could be Jira, ServiceNow, Power Automate, IAM, HRIS, procurement, email, Slack, or an internal API.
 
 ## 8. Audit And Observability
 
@@ -129,3 +147,7 @@ Say:
 Say:
 
 > This project is a governed AI workflow layer for internal operations. It demonstrates RAG, structured outputs, RBAC/RLS, human-in-the-loop review, backend connector execution, retries, audit logs, and observability.
+
+Optional close:
+
+> The main design principle is low-risk work can move faster, but high-risk work must pass a human gate with policy evidence and auditability.

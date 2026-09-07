@@ -172,6 +172,7 @@ The database stores only the `env:` reference. The real secret stays in backend 
 For a full production demo validation path, see:
 
 ```text
+docs/project-pitch.md
 docs/demo-script.md
 docs/qa-checklist.md
 docs/architecture.md
@@ -197,3 +198,5 @@ docs/flowpilot-make-google-sheets-template.csv
 The key architecture decision is to separate AI reasoning from workflow execution. FlowPilot AI lets AI structure messy requests, classify risk, retrieve policy evidence, and propose next steps. But execution is governed by deterministic validation, role-based access, human review, approved workflow templates, backend-only connectors, and audit logs.
 
 This makes the system different from a generic chatbot or automation tool: AI assists the decision process, while the platform controls authorization, handoff, execution, and traceability.
+
+The Make and Google Sheets demo is intentionally small. It proves that approved workflow runs can leave FlowPilot and reach an external automation system. The product value is the governance layer before that handoff: policy evidence, risk gates, human review, approved templates, backend connector execution, and audit logs.
