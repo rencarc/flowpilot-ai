@@ -74,6 +74,35 @@ function connectorLabelFor(runConnector?: { name: string; type: string } | null)
   return runConnector ? `${runConnector.name} / ${formatConnectorType(runConnector.type)}` : "No connector / mock only";
 }
 
+function shortJson(value: unknown) {
+  if (value === null || value === undefined) {
+    return "None";
+  }
+
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+
+  return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+function externalResultLabel(responseBody: Record<string, unknown> | null) {
+  if (!responseBody) {
+    return "None";
+  }
+
+  const id = responseBody.externalRunId ?? responseBody.ticketId ?? responseBody.id;
+  const system = responseBody.externalSystem ?? responseBody.adapter;
+
+  if (id && system) {
+    return `${String(system)} / ${String(id)}`;
+  }
+
+  if (id) {
+    return String(id);
+  }
+
+  return shortJson(responseBody);
+}
+
 function formatMissingInformation(value: string) {
   const normalized = value
     .replace(/_/g, " ")
@@ -166,6 +195,14 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const agentSteps = persistedCase ? agentStepsFrom(persistedCase.ai_output) : [];
   const reviewNote = persistedCase ? latestReviewNote(persistedCase.ai_output) : null;
   const requesterUpdate = persistedCase ? latestRequesterUpdate(persistedCase.ai_output) : null;
+  const latestAttemptByRunId = new Map(
+    workflowRuns.map((run) => [
+      run.id,
+      executionAttempts
+        .filter((attempt) => attempt.workflow_run_id === run.id)
+        .sort((a, b) => b.attempt_number - a.attempt_number)[0] ?? null
+    ])
+  );
   const canApproveCase = Boolean(
     persistedCase &&
     persistedCase.ai_output &&
@@ -376,6 +413,10 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                     {activeConnectors.map((connector) => <option key={connector.id} value={connector.id}>{connector.name} / {formatConnectorType(connector.type)}</option>)}
                     <option value="">No connector / mock only</option>
                   </select>
+                  <label className="check-row">
+                    <input type="checkbox" name="force_mock_failure" value="true" />
+                    <span>Force failure demo for mock connector</span>
+                  </label>
                   {activeConnectors.length === 0 ? <p className="muted">No active connector is available. This run will stay inside FlowPilot unless a connector is selected.</p> : null}
                   <SubmitButton className="primary-btn" pendingText="Queueing...">Queue workflow run</SubmitButton>
                 </form>
@@ -391,6 +432,10 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                 <div className="template-list">
                   {workflowRuns.map((run) => (
                     <article className="template-card" key={run.id}>
+                      {(() => {
+                        const latestAttempt = latestAttemptByRunId.get(run.id);
+                        return (
+                          <>
                       <div className="row-between"><h3>Run {run.id.slice(0, 8)}</h3><Tag tone={formatLooseStatus(run.status)}>{formatLooseStatus(run.status)}</Tag></div>
                       <div className="kv">
                         <Kv label="Connector" value={connectorLabelFor(run.connector_id ? connectorById.get(run.connector_id) : null)} />
@@ -398,7 +443,12 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                         <Kv label="Retry" value={`${run.retry_count} / ${run.max_retries}`} />
                         <Kv label="Created" value={formatDateTime(run.created_at)} />
                         <Kv label="Failure reason" value={run.failure_reason ?? "None"} />
+                        <Kv label="Latest HTTP status" value={latestAttempt?.response_status ? String(latestAttempt.response_status) : "Pending"} />
+                        <Kv label="Latest latency" value={latestAttempt?.latency_ms ? `${latestAttempt.latency_ms} ms` : "Pending"} />
+                        <Kv label="External result" value={externalResultLabel(latestAttempt?.response_body ?? null)} />
                       </div>
+                      {latestAttempt?.error_message ? <p className="auth-message error">{latestAttempt.error_message}</p> : null}
+                      {latestAttempt?.response_body ? <p className="muted">Response: {shortJson(latestAttempt.response_body)}</p> : null}
                       <div className="split-actions review-actions">
                         {["pending", "queued", "retrying"].includes(run.status) ? (
                           <form action={executeWorkflowRunAction}>
@@ -422,6 +472,9 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                       </div>
                       <h3>Payload preview</h3>
                       <pre className="payload">{JSON.stringify(run.payload, null, 2)}</pre>
+                          </>
+                        );
+                      })()}
                       <h3>Execution attempts</h3>
                       <div className="timeline">
                         {executionAttempts.filter((attempt) => attempt.workflow_run_id === run.id).map((attempt) => (

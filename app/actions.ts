@@ -136,6 +136,49 @@ function policySummary(citations: unknown[]) {
     .join(" | ");
 }
 
+function proposalFieldsFor(item: CaseRecord) {
+  const text = `${item.title} ${item.raw_request} ${item.department ?? ""} ${item.category ?? ""}`.toLowerCase();
+  const fromAi = Array.isArray(item.missing_information) ? item.missing_information : [];
+  const base = ["requester", "business justification", "approval evidence"];
+  const categoryFields = text.includes("bank") || text.includes("vendor") || text.includes("supplier")
+    ? ["vendor name", "new bank details", "independent verification evidence", "finance approver"]
+    : text.includes("contract") || text.includes("legal")
+      ? ["counterparty", "contract type", "legal issue", "deadline", "approval authority"]
+      : text.includes("data") || text.includes("export") || text.includes("privacy")
+        ? ["data subjects", "data fields", "purpose", "recipient", "privacy approval"]
+        : text.includes("access") || text.includes("admin") || text.includes("system")
+          ? ["target system", "requested role", "access duration", "manager approval"]
+          : ["department", "owner", "target system", "completion deadline"];
+
+  return Array.from(new Set([...base, ...categoryFields, ...fromAi].filter(Boolean)));
+}
+
+function proposalSchemaFor(fields: string[]) {
+  return Object.fromEntries(
+    fields.map((field) => [
+      field
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, ""),
+      field.toLowerCase().includes("citation") ? "array" : "string"
+    ])
+  );
+}
+
+function proposalConnectorSuggestion(item: CaseRecord): ConnectorType {
+  const text = `${item.title} ${item.raw_request} ${item.department ?? ""}`.toLowerCase();
+
+  if (text.includes("notify") || text.includes("message") || text.includes("slack")) {
+    return "slack";
+  }
+
+  if (text.includes("sheet") || text.includes("make") || text.includes("automation")) {
+    return "make";
+  }
+
+  return "mock_internal_api";
+}
+
 function aiModelName() {
   return process.env.OPENAI_MODEL || "gpt-4.1-mini";
 }
@@ -294,7 +337,12 @@ export async function analyzeCaseAction(formData: FormData) {
 
     const latencyMs = Date.now() - startedAt;
     const policyEvidenceStatus = policyCitations.length > 0 ? "found" : "missing";
-    const status = policyEvidenceStatus === "missing" ? "policy_evidence_missing" : analysis.status;
+    const autoHandoffEligible =
+      policyEvidenceStatus === "found" &&
+      analysis.risk_level === "low" &&
+      analysis.missing_information.length === 0 &&
+      Boolean(agentRun.recommendedWorkflow);
+    const status = policyEvidenceStatus === "missing" ? "policy_evidence_missing" : autoHandoffEligible ? "approved" : analysis.status;
     const handoff = createHandoffPayloadStep({
       item: visibleCase,
       citations: policyCitations,
@@ -309,7 +357,13 @@ export async function analyzeCaseAction(formData: FormData) {
       status,
       policy_citations: policyCitations,
       agent_steps: agentSteps,
-      handoff_payload_preview: handoff.payload
+      handoff_payload_preview: handoff.payload,
+      auto_processing: {
+        eligible: autoHandoffEligible,
+        reason: autoHandoffEligible
+          ? "Low-risk case had policy evidence, no missing information, and an approved workflow template match."
+          : "Case requires review or additional routing before handoff."
+      }
     };
     const { error: updateError } = await admin
       .from("cases")
@@ -321,8 +375,9 @@ export async function analyzeCaseAction(formData: FormData) {
         confidence_score: analysis.confidence_score,
         missing_information: analysis.missing_information,
         ai_output: aiOutput,
-        human_review_required: analysis.human_review_required || policyEvidenceStatus === "missing",
-        policy_evidence_status: policyEvidenceStatus
+        human_review_required: autoHandoffEligible ? false : analysis.human_review_required || policyEvidenceStatus === "missing",
+        policy_evidence_status: policyEvidenceStatus,
+        matched_workflow_template_id: autoHandoffEligible ? agentRun.recommendedWorkflow?.id : visibleCase.matched_workflow_template_id
       })
       .eq("id", visibleCase.id)
       .eq("workspace_id", profile.workspace_id);
@@ -351,6 +406,23 @@ export async function analyzeCaseAction(formData: FormData) {
         agent_steps: agentSteps
       }
     });
+
+    if (autoHandoffEligible && agentRun.recommendedWorkflow) {
+      await admin.from("audit_logs").insert({
+        workspace_id: profile.workspace_id,
+        actor_id: user.id,
+        actor_type: "system",
+        case_id: visibleCase.id,
+        event_type: "LOW_RISK_AUTO_APPROVED",
+        event_summary: `Low-risk case auto-approved and matched to workflow template: ${agentRun.recommendedWorkflow.name}.`,
+        metadata: {
+          workflow_template_id: agentRun.recommendedWorkflow.id,
+          workflow_template_name: agentRun.recommendedWorkflow.name,
+          policy_citation_count: policyCitations.length,
+          risk_level: analysis.risk_level
+        }
+      });
+    }
 
     await admin.from("ai_traces").insert({
       workspace_id: profile.workspace_id,
@@ -1307,14 +1379,10 @@ export async function createWorkflowProposalAction(formData: FormData) {
     redirect("/cases?error=case_not_visible");
   }
 
-  const requiredFields = [
-    "requester",
-    "business justification",
-    "approval evidence",
-    ...(visibleCase.department ? ["department"] : []),
-    ...(visibleCase.policy_evidence_status !== "found" ? ["policy evidence"] : [])
-  ];
+  const requiredFields = proposalFieldsFor(visibleCase);
   const proposalName = `${visibleCase.category ?? visibleCase.department ?? "Operations"} workflow proposal`;
+  const connectorSuggestion = proposalConnectorSuggestion(visibleCase);
+  const policyCitations = Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [];
   const admin = createAdminClient();
   const { data: proposal, error: proposalError } = await admin
     .from("workflow_template_proposals")
@@ -1327,26 +1395,28 @@ export async function createWorkflowProposalAction(formData: FormData) {
       trigger_condition: visibleCase.raw_request.slice(0, 220),
       required_fields: requiredFields,
       risk_level: (visibleCase.risk_level ?? "medium") as RiskLevel,
-      requires_review: true,
+      requires_review: visibleCase.risk_level !== "low" || requiredFields.some((field) => field.includes("approval")),
       suggested_steps: [
-        "Validate requester authority and business justification.",
-        "Confirm required policy evidence and missing information.",
-        "Preview payload before any backend connector handoff.",
-        "Require reviewer/admin approval before execution."
+        "Normalize the request into the required payload fields.",
+        "Check policy citations and required approval evidence.",
+        "Route high-risk or incomplete requests to reviewer/admin approval.",
+        "Send the approved payload through a backend connector only after the template is approved."
       ],
       payload_schema: {
         case_id: "string",
-        requester: "string",
-        department: "string",
-        approval_evidence: "string",
-        policy_citations: "array"
+        case_url: "string",
+        title: "string",
+        risk_level: "string",
+        workflow_name: "string",
+        policy_citations: "array",
+        ...proposalSchemaFor(requiredFields)
       },
-      connector_type_suggestion: "mock_internal_api",
-      policy_evidence: Array.isArray(visibleCase.ai_output?.policy_citations) ? visibleCase.ai_output.policy_citations : [],
+      connector_type_suggestion: connectorSuggestion,
+      policy_evidence: policyCitations,
       limitations: [
-        "Draft proposal only.",
+        "AI-generated draft proposal only.",
         "Cannot execute until an admin converts it into an approved workflow template.",
-        "Connector configuration is required before production handoff."
+        `Suggested connector type is ${connectorSuggestion}, but admin must configure or confirm the connector before production handoff.`
       ],
       status: "under_review"
     })
@@ -1388,7 +1458,9 @@ export async function createWorkflowProposalAction(formData: FormData) {
     metadata: {
       workflow_template_proposal_id: proposal.id,
       proposal_name: proposalName,
-      source: "governed_fallback"
+      required_fields: requiredFields,
+      connector_type_suggestion: connectorSuggestion,
+      source: "case_grounded_proposal"
     }
   });
 
@@ -1653,6 +1725,7 @@ export async function toggleConnectorAction(formData: FormData) {
 export async function createWorkflowRunAction(formData: FormData) {
   const caseId = requiredString(formData, "case_id");
   const connectorId = requiredString(formData, "connector_id");
+  const forceMockFailure = formData.get("force_mock_failure") === "true";
   const { supabase, user, profile } = await getCurrentUserContext();
 
   if (!user || !profile) {
@@ -1706,6 +1779,7 @@ export async function createWorkflowRunAction(formData: FormData) {
     policy_citations: policyCitations,
     external_status: "approved_handoff_sent",
     notes: "FlowPilot approved workflow handoff.",
+    force_failure: forceMockFailure,
     schema: template.payload_schema
   };
   const idempotencyKey = idempotencyKeyFor(visibleCase.id, template.id);
