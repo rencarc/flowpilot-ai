@@ -173,6 +173,7 @@ For a full production demo validation path, see:
 
 ```text
 docs/project-pitch.md
+docs/interview-talk-track-bilingual.md
 docs/demo-script.md
 docs/qa-checklist.md
 docs/architecture.md
