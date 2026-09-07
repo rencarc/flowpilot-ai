@@ -62,6 +62,18 @@ function formatLooseStatus(status: string) {
     .join(" ");
 }
 
+function formatConnectorType(type?: string | null) {
+  if (!type) {
+    return "No connector";
+  }
+
+  return formatLooseStatus(type);
+}
+
+function connectorLabelFor(runConnector?: { name: string; type: string } | null) {
+  return runConnector ? `${runConnector.name} / ${formatConnectorType(runConnector.type)}` : "No connector / mock only";
+}
+
 function formatMissingInformation(value: string) {
   const normalized = value
     .replace(/_/g, " ")
@@ -144,6 +156,8 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
   const connectors = profile?.role === "admin" ? await getVisibleConnectors() : [];
   const workflowRuns = persistedCase && canAnalyze ? await getWorkflowRunsForCase(persistedCase.id) : [];
   const executionAttempts = await getExecutionAttemptsForRuns(workflowRuns.map((run) => run.id));
+  const connectorById = new Map(connectors.map((connector) => [connector.id, connector]));
+  const activeConnectors = connectors.filter((connector) => connector.active);
   const approvedWorkflowTemplates = workflowTemplates.filter((template) => template.lifecycle_status === "approved" || template.lifecycle_status === "active");
   const matchedWorkflow = approvedWorkflowTemplates.find((template) => template.id === persistedCase?.matched_workflow_template_id);
   const recommendedWorkflow = persistedCase ? recommendWorkflowTemplate(persistedCase, approvedWorkflowTemplates) : null;
@@ -358,10 +372,11 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
               {matchedWorkflow && persistedCase.status === "approved" ? (
                 <form className="review-form" action={createWorkflowRunAction}>
                   <input type="hidden" name="case_id" value={persistedCase.id} />
-                  <select className="input" name="connector_id" defaultValue="">
-                    <option value="">No connector / mock queue only</option>
-                    {connectors.map((connector) => <option key={connector.id} value={connector.id}>{connector.name}</option>)}
+                  <select className="input" name="connector_id" defaultValue={activeConnectors[0]?.id ?? ""}>
+                    {activeConnectors.map((connector) => <option key={connector.id} value={connector.id}>{connector.name} / {formatConnectorType(connector.type)}</option>)}
+                    <option value="">No connector / mock only</option>
                   </select>
+                  {activeConnectors.length === 0 ? <p className="muted">No active connector is available. This run will stay inside FlowPilot unless a connector is selected.</p> : null}
                   <SubmitButton className="primary-btn" pendingText="Queueing...">Queue workflow run</SubmitButton>
                 </form>
               ) : (
@@ -378,6 +393,7 @@ export default async function CaseDetailPage({ params, searchParams }: { params:
                     <article className="template-card" key={run.id}>
                       <div className="row-between"><h3>Run {run.id.slice(0, 8)}</h3><Tag tone={formatLooseStatus(run.status)}>{formatLooseStatus(run.status)}</Tag></div>
                       <div className="kv">
+                        <Kv label="Connector" value={connectorLabelFor(run.connector_id ? connectorById.get(run.connector_id) : null)} />
                         <Kv label="Idempotency key" value={run.idempotency_key} />
                         <Kv label="Retry" value={`${run.retry_count} / ${run.max_retries}`} />
                         <Kv label="Created" value={formatDateTime(run.created_at)} />
